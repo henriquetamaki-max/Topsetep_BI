@@ -1,0 +1,5 @@
+pandas>=2.2
+supabase>=2.5
+python-dotenv>=1.0
+streamlit>=1.40
+plotly>=6.0

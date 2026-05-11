@@ -1,0 +1,13 @@
+.venv/
+Env/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+CSV output/*.csv
+!CSV output/.gitkeep
+
+# Projeto de referência (TradePontos) - foi consultado para extrair fórmulas
+# para metrics.py; não faz parte do código deste repo e contém node_modules pesado.
+Templates/TradePontos/

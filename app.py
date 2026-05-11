@@ -1,0 +1,544 @@
+"""
+BI TopStep — Dashboard de trades.
+
+Cross-filter estilo PowerBI: filtros na sidebar (período, contrato, tipo,
+dia da semana) reaplicam em TODOS os gráficos abaixo.
+
+Métricas em $ + em pontos (port do projeto TradePontos), com análise de
+overlap grouping e segmentação por adições.
+
+Rodar:   streamlit run app.py
+"""
+
+from __future__ import annotations
+
+import os
+from datetime import date
+from pathlib import Path
+
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+from dotenv import load_dotenv
+from supabase import create_client
+
+import metrics
+
+ROOT = Path(__file__).resolve().parent
+ENV_FILE = ROOT / "Env" / "Topstep_bi.env"
+
+# ----------------------------- Tema / Cores ----------------------------------
+
+GREEN = "#7fc7a4"
+RED = "#e08585"
+GREY = "#3a3f4b"
+BG = "#0e1117"
+TEXT = "#e6e6e6"
+MUTED = "#9aa0a6"
+
+PLOTLY_LAYOUT = dict(
+    paper_bgcolor=BG,
+    plot_bgcolor=BG,
+    font=dict(color=TEXT, family="Inter, system-ui, sans-serif"),
+    margin=dict(l=10, r=10, t=40, b=10),
+    xaxis=dict(gridcolor=GREY, zerolinecolor=GREY),
+    yaxis=dict(gridcolor=GREY, zerolinecolor=GREY),
+)
+
+st.set_page_config(
+    page_title="BI TopStep",
+    page_icon=":chart_with_upwards_trend:",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+st.markdown(
+    """
+    <style>
+    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
+    [data-testid="stMetricValue"] { font-size: 1.6rem; font-weight: 600; }
+    [data-testid="stMetricLabel"] { color: #9aa0a6; }
+    .segment-box {
+        background:#161a23; border:1px solid #2a2f3a; border-radius:8px;
+        padding:14px 16px; height:100%;
+    }
+    .segment-box h4 {
+        font-size:.75rem; letter-spacing:1px; text-transform:uppercase;
+        color:#9aa0a6; margin:0 0 10px 0; font-weight:600;
+    }
+    .segment-row { display:flex; justify-content:space-between; font-size:.85rem;
+        padding:3px 0; border-bottom:1px dotted #2a2f3a;}
+    .segment-row:last-child { border-bottom:none; }
+    .segment-row span:first-child { color:#9aa0a6; }
+    .segment-row span:last-child { color:#e6e6e6; font-weight:600; }
+    .pos { color:#7fc7a4 !important; }
+    .neg { color:#e08585 !important; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ----------------------------- Data loading ----------------------------------
+
+
+@st.cache_data(ttl=60)
+def load_trades() -> pd.DataFrame:
+    load_dotenv(ENV_FILE)
+    url = os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        st.error(
+            "Credenciais Supabase não encontradas em Env/Topstep_bi.env "
+            "(NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY)."
+        )
+        st.stop()
+    client = create_client(url, key)
+    rows: list[dict] = []
+    page = 0
+    while True:
+        r = (
+            client.table("trades")
+            .select("*")
+            .order("entered_at", desc=False)
+            .range(page * 1000, page * 1000 + 999)
+            .execute()
+        )
+        rows.extend(r.data)
+        if len(r.data) < 1000:
+            break
+        page += 1
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+
+    df["entered_at"] = pd.to_datetime(df["entered_at"], utc=True)
+    df["exited_at"] = pd.to_datetime(df["exited_at"], utc=True)
+    df["trade_day"] = pd.to_datetime(df["trade_day"]).dt.date
+    for c in ("entry_price", "exit_price", "fees", "commissions", "pnl", "pnl_net", "points"):
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+    df["size"] = pd.to_numeric(df["size"], errors="coerce").astype("Int64")
+    df["entry_hour"] = df["entered_at"].dt.tz_convert("America/Sao_Paulo").dt.hour
+    df["weekday"] = pd.to_datetime(df["trade_day"]).dt.day_name()
+    if "points" not in df.columns:
+        # fallback caso o ALTER TABLE ainda não tenha rodado
+        df["points"] = df.apply(
+            lambda r: (r["exit_price"] - r["entry_price"])
+            if r["type"] == "Long"
+            else (r["entry_price"] - r["exit_price"]),
+            axis=1,
+        )
+    return df
+
+
+# ----------------------------- Helpers ---------------------------------------
+
+
+def fmt_money(v: float) -> str:
+    sign = "-" if v < 0 else ""
+    return f"{sign}$ {abs(v):,.2f}"
+
+
+def fmt_pts(v: float) -> str:
+    return f"{v:+,.2f} pts"
+
+
+def fmt_pct(v: float) -> str:
+    return f"{v * 100:.1f}%"
+
+
+def color_class(v: float) -> str:
+    return "pos" if v >= 0 else "neg"
+
+
+# ----------------------------- App -------------------------------------------
+
+df_all = load_trades()
+
+st.title("BI TopStep")
+st.caption("Dashboard de trades — filtros aplicam em todos os gráficos.")
+
+if df_all.empty:
+    st.warning("Nenhum trade no banco ainda. Rode `python ingest.py` primeiro.")
+    st.stop()
+
+# --- Sidebar: filtros (cross-filter) -----------------------------------------
+
+with st.sidebar:
+    st.header("Filtros")
+
+    min_d, max_d = df_all["trade_day"].min(), df_all["trade_day"].max()
+    date_range = st.date_input(
+        "Período (trade day)",
+        value=(min_d, max_d),
+        min_value=min_d,
+        max_value=max_d,
+    )
+    if isinstance(date_range, tuple) and len(date_range) == 2:
+        start_d, end_d = date_range
+    else:
+        start_d = end_d = date_range if isinstance(date_range, date) else min_d
+
+    contracts = sorted(df_all["contract_name"].unique())
+    sel_contracts = st.multiselect("Contrato", contracts, default=contracts)
+
+    types = sorted(df_all["type"].unique())
+    sel_types = st.multiselect("Tipo (Long/Short)", types, default=types)
+
+    weekdays_order = [
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+    ]
+    sel_weekdays = st.multiselect("Dia da semana", weekdays_order, default=weekdays_order)
+
+    result_filter = st.radio(
+        "Resultado",
+        options=["Todos", "Só ganhadores", "Só perdedores"],
+        index=0,
+        horizontal=False,
+    )
+
+    st.divider()
+    if st.button("Recarregar dados do Supabase"):
+        st.cache_data.clear()
+        st.rerun()
+
+# --- Aplica filtros ----------------------------------------------------------
+
+df = df_all[
+    (df_all["trade_day"] >= start_d)
+    & (df_all["trade_day"] <= end_d)
+    & (df_all["contract_name"].isin(sel_contracts))
+    & (df_all["type"].isin(sel_types))
+    & (df_all["weekday"].isin(sel_weekdays))
+].copy()
+if result_filter == "Só ganhadores":
+    df = df[df["pnl_net"] > 0]
+elif result_filter == "Só perdedores":
+    df = df[df["pnl_net"] <= 0]
+
+if df.empty:
+    st.warning("Nenhum trade encontrado com os filtros atuais.")
+    st.stop()
+
+# --- Derivações: grupos, KPIs em pts, segmentos, daily -----------------------
+
+df_with_groups, groups = metrics.compute_groups(df)
+pts_kpis = metrics.compute_kpis(df_with_groups, groups)
+segments = metrics.compute_segments(groups)
+daily = metrics.compute_daily(df_with_groups)
+
+# --- KPIs em $ ---------------------------------------------------------------
+
+total_pnl = float(df["pnl_net"].sum())
+total_trades = int(len(df))
+wins = df[df["pnl_net"] > 0]
+losses = df[df["pnl_net"] <= 0]
+win_rate = 100.0 * len(wins) / total_trades if total_trades else 0.0
+profit_factor = (
+    float(wins["pnl_net"].sum() / abs(losses["pnl_net"].sum()))
+    if len(losses) and losses["pnl_net"].sum() != 0
+    else float("inf")
+)
+
+daily_pnl = df.groupby("trade_day", as_index=False)["pnl_net"].sum().sort_values("trade_day")
+best_day_val = float(daily_pnl["pnl_net"].max()) if len(daily_pnl) else 0.0
+worst_day_val = float(daily_pnl["pnl_net"].min()) if len(daily_pnl) else 0.0
+best_day_date = daily_pnl.loc[daily_pnl["pnl_net"].idxmax(), "trade_day"] if len(daily_pnl) else None
+worst_day_date = daily_pnl.loc[daily_pnl["pnl_net"].idxmin(), "trade_day"] if len(daily_pnl) else None
+
+st.subheader("KPIs em $")
+c1, c2, c3, c4, c5, c6 = st.columns(6)
+c1.metric("Total PnL líquido", fmt_money(total_pnl))
+c2.metric("Trades", f"{total_trades}")
+c3.metric("Win Rate (trade)", f"{win_rate:.1f}%")
+c4.metric("Profit Factor", f"{profit_factor:.2f}" if profit_factor != float("inf") else "∞")
+c5.metric("Melhor dia", fmt_money(best_day_val), f"{best_day_date}" if best_day_date else "")
+c6.metric("Pior dia", fmt_money(worst_day_val), f"{worst_day_date}" if worst_day_date else "")
+
+# --- KPIs em pontos ----------------------------------------------------------
+
+st.subheader("KPIs em pontos")
+p1, p2, p3, p4, p5, p6 = st.columns(6)
+p1.metric("Net Points", fmt_pts(pts_kpis["total_net_points"]))
+p2.metric("Avg Win Pts", f"{pts_kpis['avg_winning_trade_points']:.2f}")
+p3.metric("Avg Loss Pts", f"{pts_kpis['avg_losing_trade_points']:.2f}")
+p4.metric("R/R Average", f"{pts_kpis['rr_average']:.2f}")
+p5.metric("R/R Aggregate", f"{pts_kpis['rr_aggregate']:.2f}")
+p6.metric(
+    "Operações (grupos)",
+    f"{pts_kpis['total_grouped_operations']}",
+    f"Win Rate: {fmt_pct(pts_kpis['win_rate_grouped'])}",
+)
+
+st.divider()
+
+# --- Equity curves ($ e pontos) ---------------------------------------------
+
+st.subheader("Equity curve")
+eq = df_with_groups.sort_values("entered_at").copy()
+eq["cum_pnl"] = eq["pnl_net"].cumsum()
+eq["cum_pts"] = eq["points"].cumsum()
+
+col_eq1, col_eq2 = st.columns(2)
+with col_eq1:
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=eq["entered_at"], y=eq["cum_pnl"], mode="lines",
+            line=dict(color=GREEN, width=2),
+            fill="tozeroy", fillcolor="rgba(34,255,136,0.12)",
+            hovertemplate="<b>%{x}</b><br>PnL acum: $%{y:,.2f}<extra></extra>",
+        )
+    )
+    fig.update_layout(**PLOTLY_LAYOUT, height=300, title="PnL líquido acumulado ($)")
+    st.plotly_chart(fig, use_container_width=True)
+
+with col_eq2:
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=eq["entered_at"], y=eq["cum_pts"], mode="lines",
+            line=dict(color="#65b5ff", width=2),
+            fill="tozeroy", fillcolor="rgba(101,181,255,0.12)",
+            hovertemplate="<b>%{x}</b><br>Pontos acum: %{y:,.2f}<extra></extra>",
+        )
+    )
+    fig.update_layout(**PLOTLY_LAYOUT, height=300, title="Pontos acumulados")
+    st.plotly_chart(fig, use_container_width=True)
+
+# --- Daily charts (TopStepX style) -------------------------------------------
+
+col_d1, col_d2 = st.columns(2)
+
+with col_d1:
+    st.subheader("Pontos diários")
+    if not daily.empty:
+        fig = go.Figure()
+        fig.add_trace(
+            go.Bar(
+                x=daily["trade_day"], y=daily["winning_points"],
+                name="Winning Pts", marker_color=GREEN,
+                hovertemplate="<b>%{x}</b><br>Win: %{y:,.2f}<extra></extra>",
+            )
+        )
+        fig.add_trace(
+            go.Bar(
+                x=daily["trade_day"], y=daily["losing_points"],
+                name="Losing Pts", marker_color=RED,
+                hovertemplate="<b>%{x}</b><br>Loss: %{y:,.2f}<extra></extra>",
+            )
+        )
+        fig.update_layout(**PLOTLY_LAYOUT, height=320, barmode="relative",
+                          legend=dict(orientation="h", y=1.1))
+        st.plotly_chart(fig, use_container_width=True)
+
+with col_d2:
+    st.subheader("Contratos por dia (size)")
+    if not daily.empty:
+        fig = go.Figure()
+        fig.add_trace(
+            go.Bar(
+                x=daily["trade_day"], y=daily["winning_size"],
+                name="Winning Size", marker_color=GREEN,
+                hovertemplate="<b>%{x}</b><br>Win size: %{y}<extra></extra>",
+            )
+        )
+        fig.add_trace(
+            go.Bar(
+                x=daily["trade_day"], y=daily["losing_size"],
+                name="Losing Size", marker_color=RED,
+                hovertemplate="<b>%{x}</b><br>Loss size: %{y}<extra></extra>",
+            )
+        )
+        fig.update_layout(**PLOTLY_LAYOUT, height=320, barmode="stack",
+                          legend=dict(orientation="h", y=1.1))
+        st.plotly_chart(fig, use_container_width=True)
+
+# --- Bar charts por dimensão -------------------------------------------------
+
+col_a, col_b = st.columns(2)
+
+with col_a:
+    st.subheader("PnL por dia da semana")
+    wd = df.groupby("weekday", as_index=False)["pnl_net"].sum()
+    wd["order"] = wd["weekday"].map({d: i for i, d in enumerate(
+        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    )})
+    wd = wd.sort_values("order")
+    fig = go.Figure(
+        go.Bar(
+            x=wd["weekday"], y=wd["pnl_net"],
+            marker_color=[GREEN if v >= 0 else RED for v in wd["pnl_net"]],
+            hovertemplate="<b>%{x}</b><br>PnL: $%{y:,.2f}<extra></extra>",
+        )
+    )
+    fig.update_layout(**PLOTLY_LAYOUT, height=300)
+    st.plotly_chart(fig, use_container_width=True)
+
+with col_b:
+    st.subheader("PnL por hora de entrada (BRT)")
+    hr = df.groupby("entry_hour", as_index=False)["pnl_net"].sum()
+    fig = go.Figure(
+        go.Bar(
+            x=hr["entry_hour"], y=hr["pnl_net"],
+            marker_color=[GREEN if v >= 0 else RED for v in hr["pnl_net"]],
+            hovertemplate="<b>%{x}h</b><br>PnL: $%{y:,.2f}<extra></extra>",
+        )
+    )
+    fig.update_layout(**PLOTLY_LAYOUT, height=300, xaxis_title="Hora (BRT)")
+    st.plotly_chart(fig, use_container_width=True)
+
+# --- PnL por contrato + heatmap calendário -----------------------------------
+
+col_c, col_d = st.columns([1, 2])
+
+with col_c:
+    st.subheader("PnL por contrato")
+    ct = df.groupby("contract_name", as_index=False)["pnl_net"].sum().sort_values("pnl_net")
+    fig = go.Figure(
+        go.Bar(
+            y=ct["contract_name"], x=ct["pnl_net"], orientation="h",
+            marker_color=[GREEN if v >= 0 else RED for v in ct["pnl_net"]],
+            hovertemplate="<b>%{y}</b><br>PnL: $%{x:,.2f}<extra></extra>",
+        )
+    )
+    fig.update_layout(**PLOTLY_LAYOUT, height=340)
+    st.plotly_chart(fig, use_container_width=True)
+
+with col_d:
+    st.subheader("Calendário de PnL diário")
+    cal = daily_pnl.copy()
+    if not cal.empty:
+        cal["trade_day"] = pd.to_datetime(cal["trade_day"])
+        full_range = pd.date_range(cal["trade_day"].min(), cal["trade_day"].max(), freq="D")
+        cal = cal.set_index("trade_day").reindex(full_range).rename_axis("trade_day").reset_index()
+        cal["week"] = cal["trade_day"].dt.strftime("%Y-W%V")
+        cal["dow_idx"] = cal["trade_day"].dt.weekday
+        pivot = cal.pivot_table(
+            index="week", columns="dow_idx", values="pnl_net", aggfunc="sum"
+        ).reindex(columns=[0, 1, 2, 3, 4, 5, 6])
+        text_pivot = cal.assign(
+            label=cal.apply(
+                lambda r: f"{r['trade_day'].strftime('%d/%m')}<br>${r['pnl_net']:,.0f}"
+                if pd.notna(r["pnl_net"])
+                else r["trade_day"].strftime("%d/%m"),
+                axis=1,
+            )
+        ).pivot_table(
+            index="week", columns="dow_idx", values="label", aggfunc="first"
+        ).reindex(columns=[0, 1, 2, 3, 4, 5, 6])
+
+        vmax = max(abs(daily_pnl["pnl_net"].min()), abs(daily_pnl["pnl_net"].max())) or 1.0
+        fig = go.Figure(
+            go.Heatmap(
+                z=pivot.values,
+                x=["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"],
+                y=pivot.index,
+                colorscale=[[0.0, RED], [0.5, "#1a1d24"], [1.0, GREEN]],
+                zmin=-vmax, zmax=vmax,
+                text=text_pivot.values, texttemplate="%{text}",
+                textfont={"size": 10, "color": TEXT},
+                hovertemplate="%{text}<extra></extra>",
+                showscale=False,
+            )
+        )
+        fig.update_layout(**PLOTLY_LAYOUT, height=340)
+        st.plotly_chart(fig, use_container_width=True)
+
+st.divider()
+
+# --- Análise de Adições (expander) -------------------------------------------
+
+with st.expander("Análise de Adições (operações agrupadas)", expanded=False):
+    st.caption(
+        "Trades que se sobrepõem no tempo (mesmo contrato + tipo) viram uma "
+        "**operação** (grupo). Adições = trades extras dentro da mesma operação."
+    )
+
+    def render_segment(title: str, seg: dict, accent: str = TEXT) -> str:
+        pnl_cls = color_class(seg["total_pnl"])
+        pts_cls = color_class(seg["total_points"])
+        return f"""
+        <div class="segment-box">
+            <h4 style="color:{accent}">{title}</h4>
+            <div class="segment-row"><span>Count</span><span>{seg['count']}</span></div>
+            <div class="segment-row"><span>Total Pts</span>
+                <span class="{pts_cls}">{seg['total_points']:+,.2f}</span></div>
+            <div class="segment-row"><span>Avg Pts</span>
+                <span class="{pts_cls}">{seg['avg_points']:+,.2f}</span></div>
+            <div class="segment-row"><span>Total PnL</span>
+                <span class="{pnl_cls}">$ {seg['total_pnl']:,.2f}</span></div>
+            <div class="segment-row"><span>Avg PnL</span>
+                <span class="{pnl_cls}">$ {seg['avg_pnl']:,.2f}</span></div>
+            <div class="segment-row"><span>Win Rate</span>
+                <span>{seg['win_rate_by_group'] * 100:.1f}%</span></div>
+            <div class="segment-row"><span>Avg Adições</span>
+                <span>{seg['avg_additions']:.2f}</span></div>
+            <div class="segment-row"><span>Total Size</span>
+                <span>{int(seg['total_size'])}</span></div>
+        </div>
+        """
+
+    s1, s2, s3, s4 = st.columns(4)
+    s1.markdown(render_segment("Sem adição", segments["no_additions"], MUTED), unsafe_allow_html=True)
+    s2.markdown(render_segment("Com adição", segments["with_additions"], "#65b5ff"), unsafe_allow_html=True)
+    s3.markdown(render_segment("Adições vencedoras", segments["with_additions_winners"], GREEN), unsafe_allow_html=True)
+    s4.markdown(render_segment("Adições perdedoras", segments["with_additions_losers"], RED), unsafe_allow_html=True)
+
+    st.markdown("&nbsp;")
+    st.markdown("**Operações agrupadas**")
+    if not groups.empty:
+        g_show = groups.sort_values("group_start", ascending=False)[
+            [
+                "group_id", "contract_name", "type", "group_start", "group_end",
+                "trade_count", "additions_count", "total_points", "total_pnl",
+                "total_net_pnl", "duration_min", "points_status",
+            ]
+        ].rename(
+            columns={
+                "group_id": "Grupo",
+                "contract_name": "Contrato",
+                "type": "Tipo",
+                "group_start": "Início",
+                "group_end": "Fim",
+                "trade_count": "# trades",
+                "additions_count": "# adições",
+                "total_points": "Total Pts",
+                "total_pnl": "PnL bruto",
+                "total_net_pnl": "PnL líquido",
+                "duration_min": "Duração (min)",
+                "points_status": "Status",
+            }
+        )
+        st.dataframe(g_show, use_container_width=True, hide_index=True, height=280)
+
+st.divider()
+
+# --- Tabela de trades --------------------------------------------------------
+
+st.subheader(f"Trades ({len(df)})")
+show = df_with_groups.sort_values("entered_at", ascending=False)[
+    [
+        "trade_day", "contract_name", "type", "size", "entry_price", "exit_price",
+        "points", "pnl", "fees", "commissions", "pnl_net", "trade_duration", "group_id",
+    ]
+].rename(
+    columns={
+        "trade_day": "Dia",
+        "contract_name": "Contrato",
+        "type": "Tipo",
+        "size": "Qtd",
+        "entry_price": "Entrada",
+        "exit_price": "Saída",
+        "points": "Pts",
+        "pnl": "PnL bruto",
+        "fees": "Fees",
+        "commissions": "Comissões",
+        "pnl_net": "PnL líquido",
+        "trade_duration": "Duração",
+        "group_id": "Grupo",
+    }
+)
+st.dataframe(show, use_container_width=True, hide_index=True, height=380)
