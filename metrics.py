@@ -239,6 +239,141 @@ def compute_daily(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Overview — KPIs em $ no estilo do dashboard TopStepX
+# ---------------------------------------------------------------------------
+
+
+# Buckets de duração (em segundos) replicando o painel TopStepX
+# "Trade Duration Analysis" / "Win Rate Analysis".
+DURATION_BUCKETS: list[tuple[str, float, float]] = [
+    ("Under 15 sec", 0, 15),
+    ("15-45 sec", 15, 45),
+    ("45 sec - 1 min", 45, 60),
+    ("1 min - 2 min", 60, 120),
+    ("2 min - 5 min", 120, 300),
+    ("5 min - 10 min", 300, 600),
+    ("10 min - 30 min", 600, 1800),
+    ("30 min - 1 hour", 1800, 3600),
+    ("1 hour - 2 hours", 3600, 7200),
+    ("2 hours - 4 hours", 7200, 14400),
+    ("4 hours and up", 14400, float("inf")),
+]
+
+
+def compute_overview(df: pd.DataFrame) -> dict:
+    """KPIs em $ no estilo TopStepX (Day Win %, Best Day %, Best/Worst Trade,
+    Avg Win/Loss em $, Avg Duration, Total Lots, Trade Direction %).
+    Tudo derivado dos trades já filtrados.
+    """
+    if df.empty:
+        return _empty_overview()
+
+    d = df.copy()
+    d["duration_sec"] = (d["exited_at"] - d["entered_at"]).dt.total_seconds()
+
+    wins = d[d["pnl_net"] > 0]
+    losses = d[d["pnl_net"] < 0]
+
+    daily_pnl = d.groupby("trade_day", as_index=False)["pnl_net"].sum()
+    day_total = float(daily_pnl["pnl_net"].sum())
+    winning_days = int((daily_pnl["pnl_net"] > 0).sum())
+    total_days = int(len(daily_pnl))
+    day_win_pct = (winning_days / total_days) if total_days else 0.0
+
+    best_day = daily_pnl.loc[daily_pnl["pnl_net"].idxmax()] if total_days else None
+    worst_day = daily_pnl.loc[daily_pnl["pnl_net"].idxmin()] if total_days else None
+    # Razão do melhor dia sobre o total — só faz sentido quando o total é > 0.
+    best_day_pct_of_total = (
+        float(best_day["pnl_net"] / day_total) if best_day is not None and day_total > 0 else 0.0
+    )
+
+    # Best/Worst trade individual (por PnL líquido).
+    best_trade = d.loc[d["pnl_net"].idxmax()] if len(d) else None
+    worst_trade = d.loc[d["pnl_net"].idxmin()] if len(d) else None
+
+    longs = d[d["type"] == "Long"]
+    shorts = d[d["type"] == "Short"]
+    long_pct = float(len(longs) / len(d)) if len(d) else 0.0
+    short_pct = float(len(shorts) / len(d)) if len(d) else 0.0
+
+    return {
+        "total_pnl_net": float(d["pnl_net"].sum()),
+        "trade_count": int(len(d)),
+        "winning_trades": int(len(wins)),
+        "losing_trades": int(len(losses)),
+        "total_lots": int(pd.to_numeric(d["size"], errors="coerce").fillna(0).sum()),
+        "avg_winning_trade": float(wins["pnl_net"].mean()) if not wins.empty else 0.0,
+        "avg_losing_trade": float(losses["pnl_net"].mean()) if not losses.empty else 0.0,
+        "avg_trade_duration_sec": float(d["duration_sec"].mean()),
+        "avg_win_duration_sec": float(wins["duration_sec"].mean()) if not wins.empty else 0.0,
+        "avg_loss_duration_sec": float(losses["duration_sec"].mean()) if not losses.empty else 0.0,
+        "day_win_pct": day_win_pct,
+        "winning_days": winning_days,
+        "total_days": total_days,
+        "best_day_pct_of_total": best_day_pct_of_total,
+        "best_day": (best_day["trade_day"], float(best_day["pnl_net"])) if best_day is not None else None,
+        "worst_day": (worst_day["trade_day"], float(worst_day["pnl_net"])) if worst_day is not None else None,
+        "best_trade": _trade_summary(best_trade) if best_trade is not None else None,
+        "worst_trade": _trade_summary(worst_trade) if worst_trade is not None else None,
+        "long_pct": long_pct,
+        "short_pct": short_pct,
+        "long_count": int(len(longs)),
+        "short_count": int(len(shorts)),
+    }
+
+
+def _trade_summary(row: pd.Series) -> dict:
+    return {
+        "id": int(row["id"]),
+        "contract_name": str(row["contract_name"]),
+        "type": str(row["type"]),
+        "size": int(row["size"]) if pd.notna(row["size"]) else 0,
+        "entry_price": float(row["entry_price"]),
+        "exit_price": float(row["exit_price"]),
+        "pnl_net": float(row["pnl_net"]),
+        "entered_at": row["entered_at"],
+        "exited_at": row["exited_at"],
+    }
+
+
+def _empty_overview() -> dict:
+    return {
+        "total_pnl_net": 0.0, "trade_count": 0,
+        "winning_trades": 0, "losing_trades": 0, "total_lots": 0,
+        "avg_winning_trade": 0.0, "avg_losing_trade": 0.0,
+        "avg_trade_duration_sec": 0.0,
+        "avg_win_duration_sec": 0.0, "avg_loss_duration_sec": 0.0,
+        "day_win_pct": 0.0, "winning_days": 0, "total_days": 0,
+        "best_day_pct_of_total": 0.0,
+        "best_day": None, "worst_day": None,
+        "best_trade": None, "worst_trade": None,
+        "long_pct": 0.0, "short_pct": 0.0, "long_count": 0, "short_count": 0,
+    }
+
+
+def compute_duration_buckets(df: pd.DataFrame) -> pd.DataFrame:
+    """Trade counts e win rate por bucket de duração (estilo TopStepX)."""
+    cols = ["bucket", "trades", "wins", "win_rate"]
+    if df.empty:
+        return pd.DataFrame({c: [] for c in cols})
+    d = df.copy()
+    d["duration_sec"] = (d["exited_at"] - d["entered_at"]).dt.total_seconds()
+    rows: list[dict] = []
+    for label, lo, hi in DURATION_BUCKETS:
+        mask = (d["duration_sec"] >= lo) & (d["duration_sec"] < hi)
+        sub = d[mask]
+        n = int(len(sub))
+        wins = int((sub["pnl_net"] > 0).sum())
+        rows.append({
+            "bucket": label,
+            "trades": n,
+            "wins": wins,
+            "win_rate": (wins / n) if n else 0.0,
+        })
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
 # Coach — análise comportamental determinística (sem LLM)
 # ---------------------------------------------------------------------------
 

@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 *.pyo
 .DS_Store
+logs/
 
 CSV output/*.csv
 !CSV output/.gitkeep

@@ -57,18 +57,28 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    /* Escala tipográfica:
+       --fs-label  → títulos uppercase de cartões (segment-box h4, coach-card h4)
+       --fs-body   → texto corrido em cartões (segment-row, coach-card p, coach-check)
+       --fs-metric → valor grande dos KPIs (stMetricValue)
+    */
+    :root {
+        --fs-label: 0.8rem;
+        --fs-body: 0.9rem;
+        --fs-metric: 1.5rem;
+    }
     .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
-    [data-testid="stMetricValue"] { font-size: 1.6rem; font-weight: 600; }
+    [data-testid="stMetricValue"] { font-size: var(--fs-metric); font-weight: 600; }
     [data-testid="stMetricLabel"] { color: #9aa0a6; }
     .segment-box {
         background:#161a23; border:1px solid #2a2f3a; border-radius:8px;
         padding:14px 16px; height:100%;
     }
     .segment-box h4 {
-        font-size:.75rem; letter-spacing:1px; text-transform:uppercase;
+        font-size: var(--fs-label); letter-spacing:1px; text-transform:uppercase;
         color:#9aa0a6; margin:0 0 10px 0; font-weight:600;
     }
-    .segment-row { display:flex; justify-content:space-between; font-size:.85rem;
+    .segment-row { display:flex; justify-content:space-between; font-size: var(--fs-body);
         padding:3px 0; border-bottom:1px dotted #2a2f3a;}
     .segment-row:last-child { border-bottom:none; }
     .segment-row span:first-child { color:#9aa0a6; }
@@ -80,11 +90,11 @@ st.markdown(
         padding:14px 18px; margin-bottom:10px;
     }
     .coach-card h4 {
-        margin:0 0 8px 0; font-size:.85rem; letter-spacing:.5px;
+        margin:0 0 8px 0; font-size: var(--fs-label); letter-spacing:.5px;
         text-transform:uppercase; color:#9aa0a6; font-weight:600;
     }
-    .coach-card p { margin:4px 0; font-size:.9rem; color:#e6e6e6; }
-    .coach-check { padding:8px 0; border-bottom:1px dotted #2a2f3a; font-size:.92rem; }
+    .coach-card p { margin:4px 0; font-size: var(--fs-body); color:#e6e6e6; }
+    .coach-check { padding:8px 0; border-bottom:1px dotted #2a2f3a; font-size: var(--fs-body); }
     .coach-check:last-child { border-bottom:none; }
     </style>
     """,
@@ -174,6 +184,41 @@ def fmt_duration(seconds: float) -> str:
     return f"{seconds / 3600:.1f}h"
 
 
+def _apply_day_selection_from_event(event) -> None:
+    """Lê pontos selecionados de um plotly_chart(on_select="rerun") e merge no
+    session_state["selected_days"]. Aceita barras (x = trade_day) e heatmap
+    (customdata = ISO date). Rerun se a seleção mudou de fato.
+    """
+    if not event or "selection" not in event:
+        return
+    points = event["selection"].get("points") or []
+    if not points:
+        return
+    days: set = set()
+    for p in points:
+        iso = p.get("customdata")
+        if isinstance(iso, list):
+            iso = iso[0] if iso else None
+        raw = iso or p.get("x")
+        if raw is None:
+            continue
+        try:
+            d = pd.to_datetime(raw).date()
+        except (ValueError, TypeError):
+            continue
+        days.add(d)
+    if not days:
+        return
+    current = set(st.session_state.get("selected_days", []))
+    merged = current | days
+    if merged != current:
+        st.session_state["selected_days"] = sorted(merged)
+        # Limpa a key do widget para que o multiselect releia o novo `default`
+        # no próximo run em vez de manter o valor antigo.
+        st.session_state.pop("selected_days_widget", None)
+        st.rerun()
+
+
 # ----------------------------- Renderers -------------------------------------
 
 
@@ -184,10 +229,11 @@ def render_dashboard(
     pts_kpis: dict,
     segments: dict,
     daily: pd.DataFrame,
+    overview: dict,
 ) -> None:
-    # --- KPIs em $ -----------------------------------------------------------
-    total_pnl = float(df["pnl_net"].sum())
-    total_trades = int(len(df))
+    # --- KPIs em $ (linha 1) -------------------------------------------------
+    total_pnl = overview["total_pnl_net"]
+    total_trades = overview["trade_count"]
     wins = df[df["pnl_net"] > 0]
     losses = df[df["pnl_net"] <= 0]
     win_rate = 100.0 * len(wins) / total_trades if total_trades else 0.0
@@ -198,19 +244,78 @@ def render_dashboard(
     )
 
     daily_pnl = df.groupby("trade_day", as_index=False)["pnl_net"].sum().sort_values("trade_day")
-    best_day_val = float(daily_pnl["pnl_net"].max()) if len(daily_pnl) else 0.0
-    worst_day_val = float(daily_pnl["pnl_net"].min()) if len(daily_pnl) else 0.0
-    best_day_date = daily_pnl.loc[daily_pnl["pnl_net"].idxmax(), "trade_day"] if len(daily_pnl) else None
-    worst_day_date = daily_pnl.loc[daily_pnl["pnl_net"].idxmin(), "trade_day"] if len(daily_pnl) else None
 
     st.subheader("KPIs em $")
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Total PnL líquido", fmt_money(total_pnl))
-    c2.metric("Trades", f"{total_trades}")
-    c3.metric("Win Rate (trade)", f"{win_rate:.1f}%")
-    c4.metric("Profit Factor", f"{profit_factor:.2f}" if profit_factor != float("inf") else "∞")
-    c5.metric("Melhor dia", fmt_money(best_day_val), f"{best_day_date}" if best_day_date else "")
-    c6.metric("Pior dia", fmt_money(worst_day_val), f"{worst_day_date}" if worst_day_date else "")
+    c2.metric("Trade Win %", f"{win_rate:.1f}%")
+    c3.metric(
+        "Avg Win / Avg Loss",
+        f"{fmt_money(overview['avg_winning_trade'])} / {fmt_money(overview['avg_losing_trade'])}",
+    )
+    c4.metric(
+        "Day Win %",
+        f"{overview['day_win_pct'] * 100:.1f}%",
+        f"{overview['winning_days']}/{overview['total_days']} dias",
+    )
+    c5.metric("Profit Factor", f"{profit_factor:.2f}" if profit_factor != float("inf") else "∞")
+    c6.metric("Best Day % of Total Profit", f"{overview['best_day_pct_of_total'] * 100:.1f}%")
+
+    # --- KPIs em $ (linha 2) — volume e direção ------------------------------
+    c7, c8, c9, c10, c11, c12 = st.columns(6)
+    best_day_date = overview["best_day"][0] if overview["best_day"] else None
+    best_day_val = overview["best_day"][1] if overview["best_day"] else 0.0
+    worst_day_date = overview["worst_day"][0] if overview["worst_day"] else None
+    worst_day_val = overview["worst_day"][1] if overview["worst_day"] else 0.0
+
+    c7.metric("Trades", f"{total_trades}")
+    c8.metric("Total Lots Traded", f"{overview['total_lots']:,}")
+    c9.metric("Avg Trade Duration", fmt_duration(overview["avg_trade_duration_sec"]))
+    c10.metric("Avg Win Duration", fmt_duration(overview["avg_win_duration_sec"]))
+    c11.metric("Melhor dia", fmt_money(best_day_val), f"{best_day_date}" if best_day_date else "")
+    c12.metric("Pior dia", fmt_money(worst_day_val), f"{worst_day_date}" if worst_day_date else "")
+
+    # --- Best/Worst Trade individual + Trade Direction -----------------------
+    bt = overview["best_trade"]
+    wt = overview["worst_trade"]
+
+    def _trade_card(title: str, t: dict | None, accent: str) -> str:
+        if not t:
+            return f"<div class='segment-box'><h4 style='color:{accent}'>{title}</h4><p>—</p></div>"
+        entered = pd.to_datetime(t["entered_at"]).tz_convert("America/Sao_Paulo")
+        return f"""
+        <div class="segment-box">
+            <h4 style="color:{accent}">{title}</h4>
+            <div class="segment-row"><span>PnL líquido</span>
+                <span class="{color_class(t['pnl_net'])}">{fmt_money(t['pnl_net'])}</span></div>
+            <div class="segment-row"><span>Contrato</span><span>{t['contract_name']} · {t['type']}</span></div>
+            <div class="segment-row"><span>Qtd</span><span>{t['size']}</span></div>
+            <div class="segment-row"><span>Entrada @</span><span>{t['entry_price']:,.2f}</span></div>
+            <div class="segment-row"><span>Saída @</span><span>{t['exit_price']:,.2f}</span></div>
+            <div class="segment-row"><span>Data</span><span>{entered.strftime('%d/%m %H:%M')}</span></div>
+        </div>
+        """
+
+    bt_col, wt_col, dir_col = st.columns([1, 1, 1])
+    bt_col.markdown(_trade_card("Best Trade", bt, GREEN), unsafe_allow_html=True)
+    wt_col.markdown(_trade_card("Worst Trade", wt, RED), unsafe_allow_html=True)
+    with dir_col:
+        if total_trades:
+            fig = go.Figure(
+                go.Pie(
+                    labels=["Long", "Short"],
+                    values=[overview["long_count"], overview["short_count"]],
+                    hole=0.6,
+                    marker=dict(colors=[GREEN, RED]),
+                    textinfo="label+percent",
+                    hovertemplate="<b>%{label}</b><br>Trades: %{value}<extra></extra>",
+                )
+            )
+            fig.update_layout(
+                **PLOTLY_LAYOUT, height=220,
+                title="Trade Direction %", showlegend=False,
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
     # --- KPIs em pontos ------------------------------------------------------
     st.subheader("KPIs em pontos")
@@ -266,6 +371,7 @@ def render_dashboard(
 
     with col_d1:
         st.subheader("Pontos diários")
+        st.caption("Clique nas barras (ou desenhe um box) para filtrar dias.")
         if not daily.empty:
             fig = go.Figure()
             fig.add_trace(
@@ -284,7 +390,13 @@ def render_dashboard(
             )
             fig.update_layout(**PLOTLY_LAYOUT, height=320, barmode="relative",
                               legend=dict(orientation="h", y=1.1))
-            st.plotly_chart(fig, use_container_width=True)
+            event = st.plotly_chart(
+                fig, use_container_width=True,
+                key="chart_daily_points",
+                on_select="rerun",
+                selection_mode=("points", "box"),
+            )
+            _apply_day_selection_from_event(event)
 
     with col_d2:
         st.subheader("Contratos por dia (size)")
@@ -359,6 +471,7 @@ def render_dashboard(
 
     with col_d:
         st.subheader("Calendário de PnL diário")
+        st.caption("Clique nas células (ou desenhe um box) para filtrar dias.")
         cal = daily_pnl.copy()
         if not cal.empty:
             cal["trade_day"] = pd.to_datetime(cal["trade_day"])
@@ -366,9 +479,25 @@ def render_dashboard(
             cal = cal.set_index("trade_day").reindex(full_range).rename_axis("trade_day").reset_index()
             cal["week"] = cal["trade_day"].dt.strftime("%Y-W%V")
             cal["dow_idx"] = cal["trade_day"].dt.weekday
+            # Totais por semana — usado como rótulo do eixo Y do heatmap.
+            trades_per_day = (
+                df.groupby("trade_day", as_index=False).size().rename(columns={"size": "n_trades"})
+            )
+            trades_per_day["trade_day"] = pd.to_datetime(trades_per_day["trade_day"])
+            cal = cal.merge(trades_per_day, on="trade_day", how="left")
+            cal["n_trades"] = cal["n_trades"].fillna(0).astype(int)
+            week_totals = cal.groupby("week").agg(
+                pnl=("pnl_net", "sum"), trades=("n_trades", "sum"),
+            ).reset_index()
+            week_totals["label"] = week_totals.apply(
+                lambda r: f"{r['week']}<br>${r['pnl']:,.0f}<br>{int(r['trades'])} trades",
+                axis=1,
+            )
+            week_label_map = dict(zip(week_totals["week"], week_totals["label"]))
             pivot = cal.pivot_table(
                 index="week", columns="dow_idx", values="pnl_net", aggfunc="sum"
             ).reindex(columns=[0, 1, 2, 3, 4, 5, 6])
+            week_labels = [week_label_map.get(w, w) for w in pivot.index]
             text_pivot = cal.assign(
                 label=cal.apply(
                     lambda r: f"{r['trade_day'].strftime('%d/%m')}<br>${r['pnl_net']:,.0f}"
@@ -379,13 +508,20 @@ def render_dashboard(
             ).pivot_table(
                 index="week", columns="dow_idx", values="label", aggfunc="first"
             ).reindex(columns=[0, 1, 2, 3, 4, 5, 6])
+            # customdata mantém a data ISO de cada célula para recuperar via on_select.
+            date_pivot = cal.assign(
+                iso=cal["trade_day"].dt.strftime("%Y-%m-%d"),
+            ).pivot_table(
+                index="week", columns="dow_idx", values="iso", aggfunc="first"
+            ).reindex(columns=[0, 1, 2, 3, 4, 5, 6])
 
             vmax = max(abs(daily_pnl["pnl_net"].min()), abs(daily_pnl["pnl_net"].max())) or 1.0
             fig = go.Figure(
                 go.Heatmap(
                     z=pivot.values,
                     x=["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"],
-                    y=pivot.index,
+                    y=week_labels,
+                    customdata=date_pivot.values,
                     colorscale=[[0.0, RED], [0.5, "#1a1d24"], [1.0, GREEN]],
                     zmin=-vmax, zmax=vmax,
                     text=text_pivot.values, texttemplate="%{text}",
@@ -395,6 +531,81 @@ def render_dashboard(
                 )
             )
             fig.update_layout(**PLOTLY_LAYOUT, height=340)
+            fig.update_yaxes(tickfont=dict(size=10))
+            event = st.plotly_chart(
+                fig, use_container_width=True,
+                key="chart_calendar",
+                on_select="rerun",
+                selection_mode=("points", "box"),
+            )
+            _apply_day_selection_from_event(event)
+
+    st.divider()
+
+    # --- Net Daily P&L ($) + Daily Cumulative ($) ---------------------------
+    st.subheader("Daily P&L ($)")
+    col_n1, col_n2 = st.columns(2)
+    if not daily_pnl.empty:
+        cum = daily_pnl.copy()
+        cum["cum"] = cum["pnl_net"].cumsum()
+        with col_n1:
+            fig = go.Figure(
+                go.Scatter(
+                    x=cum["trade_day"], y=cum["cum"], mode="lines+markers",
+                    line=dict(color=GREEN, width=2),
+                    fill="tozeroy", fillcolor="rgba(127,199,164,0.12)",
+                    hovertemplate="<b>%{x}</b><br>Cumulative: $%{y:,.2f}<extra></extra>",
+                )
+            )
+            fig.update_layout(**PLOTLY_LAYOUT, height=300, title="Daily Net Cumulative P&L")
+            st.plotly_chart(fig, use_container_width=True)
+        with col_n2:
+            fig = go.Figure(
+                go.Bar(
+                    x=daily_pnl["trade_day"], y=daily_pnl["pnl_net"],
+                    marker_color=[GREEN if v >= 0 else RED for v in daily_pnl["pnl_net"]],
+                    hovertemplate="<b>%{x}</b><br>PnL: $%{y:,.2f}<extra></extra>",
+                )
+            )
+            fig.update_layout(**PLOTLY_LAYOUT, height=300, title="Net Daily P&L")
+            st.plotly_chart(fig, use_container_width=True)
+
+    # --- Trade Duration Analysis + Win Rate Analysis -------------------------
+    duration_buckets = metrics.compute_duration_buckets(df)
+    if not duration_buckets.empty and duration_buckets["trades"].sum() > 0:
+        col_du1, col_du2 = st.columns(2)
+        with col_du1:
+            st.subheader("Trade Duration Analysis")
+            fig = go.Figure(
+                go.Bar(
+                    x=duration_buckets["trades"], y=duration_buckets["bucket"],
+                    orientation="h", marker_color=MUTED,
+                    text=duration_buckets["trades"], textposition="outside",
+                    hovertemplate="<b>%{y}</b><br>Trades: %{x}<extra></extra>",
+                )
+            )
+            fig.update_layout(**PLOTLY_LAYOUT, height=380)
+            fig.update_yaxes(autorange="reversed")
+            st.plotly_chart(fig, use_container_width=True)
+        with col_du2:
+            st.subheader("Win Rate Analysis")
+            wr = duration_buckets.copy()
+            # Mostra apenas buckets com pelo menos 1 trade para evitar barras
+            # falsas de 0% que confundem leitura.
+            wr["win_rate_pct"] = wr["win_rate"] * 100
+            fig = go.Figure(
+                go.Bar(
+                    x=wr["win_rate_pct"], y=wr["bucket"], orientation="h",
+                    marker_color=[GREEN if t > 0 else GREY for t in wr["trades"]],
+                    text=[f"{v:.0f}%" if t > 0 else ""
+                          for v, t in zip(wr["win_rate_pct"], wr["trades"])],
+                    textposition="outside",
+                    hovertemplate="<b>%{y}</b><br>Win rate: %{x:.0f}%<extra></extra>",
+                )
+            )
+            fig.update_layout(**PLOTLY_LAYOUT, height=380)
+            fig.update_xaxes(range=[0, 110], ticksuffix="%")
+            fig.update_yaxes(autorange="reversed")
             st.plotly_chart(fig, use_container_width=True)
 
     st.divider()
@@ -469,11 +680,13 @@ def render_dashboard(
     st.subheader(f"Trades ({len(df)})")
     show = df_with_groups.sort_values("entered_at", ascending=False)[
         [
-            "trade_day", "contract_name", "type", "size", "entry_price", "exit_price",
-            "points", "pnl", "fees", "commissions", "pnl_net", "trade_duration", "group_id",
+            "id", "trade_day", "contract_name", "type", "size",
+            "entry_price", "exit_price", "points", "pnl", "fees",
+            "commissions", "pnl_net", "trade_duration", "group_id",
         ]
     ].rename(
         columns={
+            "id": "Trade ID",
             "trade_day": "Dia",
             "contract_name": "Contrato",
             "type": "Tipo",
@@ -530,7 +743,9 @@ def render_coach(
         if last["ok"]:
             with st.container(border=True):
                 st.markdown("### 🤖 Análise Claude AI")
-                st.markdown(last["text"])
+                # Escapa `$` para o Streamlit não interpretar valores monetários
+                # como fórmulas LaTeX (que vinham renderizadas em itálico serifado).
+                st.markdown(last["text"].replace("$", r"\$"))
             with st.expander("Ver prompt enviado (debug)", expanded=False):
                 st.code(st.session_state.get("coach_ai_prompt", ""), language="markdown")
         else:
@@ -811,6 +1026,43 @@ with st.sidebar:
     ]
     sel_weekdays = st.multiselect("Dia da semana", weekdays_order, default=weekdays_order)
 
+    # Dias específicos.
+    # Estado canônico em st.session_state["selected_days"] — escrito por
+    # _apply_day_selection_from_event (após os widgets serem renderizados) e
+    # pelo on_change do multiselect abaixo.
+    # O multiselect tem key própria ("selected_days_widget") porque o Streamlit
+    # proíbe escrever em st.session_state[<widget_key>] depois do widget ser
+    # instanciado. Sincronizamos via default + on_change.
+    available_days = sorted(
+        d for d in df_all["trade_day"].unique() if start_d <= d <= end_d
+    )
+    canonical = [
+        d for d in st.session_state.get("selected_days", []) if d in available_days
+    ]
+    st.session_state["selected_days"] = canonical
+
+    def _sync_selected_days() -> None:
+        st.session_state["selected_days"] = list(
+            st.session_state.get("selected_days_widget", [])
+        )
+
+    sel_days = st.multiselect(
+        "Dias específicos (clique nos gráficos ou escolha aqui)",
+        options=available_days,
+        default=canonical,
+        format_func=lambda d: d.strftime("%d/%m/%Y") if hasattr(d, "strftime") else str(d),
+        key="selected_days_widget",
+        on_change=_sync_selected_days,
+        help="Vazio = todos os dias do período. Use os gráficos 'Pontos diários' "
+             "ou 'Calendário de PnL' para selecionar via clique/box.",
+    )
+    if sel_days and st.button("Limpar seleção de dias", use_container_width=True):
+        st.session_state["selected_days"] = []
+        # Remover a key do widget força o multiselect a reler o `default` no
+        # próximo run (caso contrário ele preserva o valor anterior).
+        st.session_state.pop("selected_days_widget", None)
+        st.rerun()
+
     result_filter = st.radio(
         "Resultado",
         options=["Todos", "Só ganhadores", "Só perdedores"],
@@ -832,6 +1084,9 @@ df = df_all[
     & (df_all["type"].isin(sel_types))
     & (df_all["weekday"].isin(sel_weekdays))
 ].copy()
+selected_days = st.session_state.get("selected_days", [])
+if selected_days:
+    df = df[df["trade_day"].isin(selected_days)]
 if result_filter == "Só ganhadores":
     df = df[df["pnl_net"] > 0]
 elif result_filter == "Só perdedores":
@@ -847,13 +1102,14 @@ df_with_groups, groups = metrics.compute_groups(df)
 pts_kpis = metrics.compute_kpis(df_with_groups, groups)
 segments = metrics.compute_segments(groups)
 daily = metrics.compute_daily(df_with_groups)
+overview = metrics.compute_overview(df_with_groups)
 
 # --- Abas --------------------------------------------------------------------
 
 tab_dash, tab_coach = st.tabs(["Dashboard", "Coach"])
 
 with tab_dash:
-    render_dashboard(df, df_with_groups, groups, pts_kpis, segments, daily)
+    render_dashboard(df, df_with_groups, groups, pts_kpis, segments, daily, overview)
 
 with tab_coach:
     filter_ctx = coach_ai.FilterContext(
