@@ -276,5 +276,13 @@
   "coach.prompt.history_header": "AVISOS ANTERIORES (análises passadas sobre estes mesmos contratos):",
   "coach.prompt.history_entry": "[{when} · período analisado: {period}]",
   "coach.prompt.history_no_checklist": "(sem checklist extraível) {text}",
-  "coach.prompt.filters_str": "Período: {start} a {end} · Contratos: {contracts} · Tipos: {types} · Dias: {weekdays} · Resultado: {result}"
+  "coach.prompt.filters_str": "Período: {start} a {end} · Contratos: {contracts} · Tipos: {types} · Dias: {weekdays} · Resultado: {result}",
+
+  "trial.banner.active": "🎁 Trial gratuito ativo — {days} dia(s) restante(s). Assine quando quiser na aba Conta.",
+  "trial.banner.ending_soon": "Seu trial termina em {days} dia(s). Assine na aba Conta para manter o acesso completo.",
+  "trial.banner.expired": "Seu trial gratuito acabou. O dashboard agora mostra apenas os últimos 30 dias e a importação de CSVs está bloqueada. Assine na aba Conta para liberar o acesso completo.",
+  "billing.past_due": "Seu último pagamento falhou. Atualize seu cartão na aba Conta para manter a assinatura ativa.",
+
+  "paywall.import.blocked": "A importação de CSVs não está disponível no seu plano atual.",
+  "paywall.import.cta": "Assine o Basic ou Pro na aba Conta para enviar novos trades. Seus dados existentes estão preservados."
 }

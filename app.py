@@ -21,6 +21,7 @@ import streamlit as st
 
 import action_plan
 import auth
+import billing
 import coach_ai
 import i18n
 import ingest_core
@@ -112,6 +113,11 @@ _user = auth.current_user()
 # do user_metadata. O language_selector é renderizado mais abaixo, no topo
 # da sidebar.
 i18n.init()
+
+# Garante que o usuário tem uma row em `subscriptions` (safety net caso a
+# trigger não tenha rodado) e resolve o plano efetivo para gating posterior.
+billing.ensure_subscription(auth.get_client())
+_plan = billing.get_effective_plan(_user["id"])
 
 
 # ----------------------------- Data loading ----------------------------------
@@ -1114,6 +1120,14 @@ def render_import(user_id: str) -> None:
     st.subheader(t("import.subheader"))
     st.caption(t("import.caption"))
 
+    # Gating por plano: usuários no plano free (trial expirado sem assinar)
+    # não conseguem importar. Mostra paywall e retorna antes de renderizar
+    # o uploader, para evitar a impressão de que o upload está disponível.
+    if not billing.has_feature(_plan, "import"):
+        st.warning(t("paywall.import.blocked"), icon="🔒")
+        st.caption(t("paywall.import.cta"))
+        return
+
     # A key do uploader rotaciona via contador para "esvaziar" a caixa após
     # uma importação. O Streamlit não permite escrever em
     # st.session_state["csv_uploader"] depois do widget instanciado, então o
@@ -1179,6 +1193,8 @@ df_all = load_trades(_user["id"])
 
 st.title(t("app.title"))
 st.caption(t("app.caption_logged", email=_user.get('email') or _user['id']))
+
+billing.render_trial_banner(_plan)
 
 # Sem trades ainda: pula filtros e mostra só a aba de upload.
 if df_all.empty:
