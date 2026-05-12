@@ -276,5 +276,10 @@
   "coach.prompt.history_header": "PRIOR WARNINGS (past analyses on these same contracts):",
   "coach.prompt.history_entry": "[{when} · analyzed period: {period}]",
   "coach.prompt.history_no_checklist": "(no extractable checklist) {text}",
-  "coach.prompt.filters_str": "Period: {start} to {end} · Contracts: {contracts} · Types: {types} · Days: {weekdays} · Result: {result}"
+  "coach.prompt.filters_str": "Period: {start} to {end} · Contracts: {contracts} · Types: {types} · Days: {weekdays} · Result: {result}",
+
+  "trial.banner.active": "🎁 Free trial active — {days} day(s) remaining. Subscribe anytime in the Account tab.",
+  "trial.banner.ending_soon": "Your trial ends in {days} day(s). Subscribe in the Account tab to keep full access.",
+  "trial.banner.expired": "Your free trial has ended. The dashboard now shows only the last 30 days and CSV imports are disabled. Subscribe in the Account tab to restore full access.",
+  "billing.past_due": "Your last payment failed. Please update your card in the Account tab to keep your subscription active."
 }
