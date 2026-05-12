@@ -101,8 +101,11 @@ def _status_label(status: str | None) -> str:
     return t(key) if key else (status or "—")
 
 
-def _handle_checkout_return() -> None:
-    """Se o usuário voltou do Checkout, mostra feedback e limpa query params."""
+def handle_checkout_return() -> None:
+    """Se o usuário voltou do Checkout, mostra feedback e limpa query params.
+
+    Deve ser chamada no topo do app (antes de renderizar qualquer aba) para
+    que o usuário veja o feedback independente da aba ativa após o redirect."""
     qp = st.query_params
     checkout = qp.get("checkout")
     if checkout == "success":
@@ -193,8 +196,6 @@ def render_account_tab(user: dict, plan: dict | None) -> None:
     """
     st.subheader(t("account.title"))
     st.caption(t("account.caption"))
-
-    _handle_checkout_return()
 
     if not billing.stripe_configured():
         st.warning(t("billing.not_configured"), icon="⚠️")

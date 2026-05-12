@@ -1197,6 +1197,10 @@ st.caption(t("app.caption_logged", email=_user.get('email') or _user['id']))
 
 billing.render_trial_banner(_plan)
 
+# Feedback do Stripe Checkout (success/cancel) — fora das abas para que
+# o usuário veja a confirmação mesmo voltando para a aba Dashboard.
+account.handle_checkout_return()
+
 # Sem trades ainda: pula filtros, mas ainda mostra Import e Account.
 if df_all.empty:
     st.warning(t("app.empty_no_trades"))
