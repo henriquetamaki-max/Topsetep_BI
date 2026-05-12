@@ -1,0 +1,41 @@
+- generic [ref=e3]:
+  - banner [ref=e6]:
+    - generic [ref=e9]:
+      - button "Deploy" [ref=e19] [cursor=pointer]:
+        - generic [ref=e21]: Deploy
+      - button "Main menu" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+  - generic [ref=e27]:
+    - heading "BI TopStep" [level=1] [ref=e32]:
+      - text: BI TopStep
+      - generic [ref=e33]:
+        - link "Link to heading":
+          - /url: "#bi-top-step"
+          - img
+    - paragraph [ref=e38]: Faça login para acessar seu dashboard de trades.
+    - generic [ref=e40]:
+      - tablist [ref=e42]:
+        - tab "Entrar" [selected] [ref=e43] [cursor=pointer]:
+          - paragraph [ref=e45]: Entrar
+        - tab "Cadastrar" [ref=e46] [cursor=pointer]:
+          - paragraph [ref=e48]: Cadastrar
+      - tabpanel "Entrar" [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e55]:
+            - generic [ref=e57]:
+              - paragraph [ref=e61]: Email
+              - textbox "Email" [ref=e64]:
+                - /placeholder: ""
+            - generic [ref=e66]:
+              - paragraph [ref=e70]: Senha
+              - generic [ref=e72]:
+                - textbox "Senha" [ref=e73]:
+                  - /placeholder: ""
+                - button "Show password text" [ref=e74] [cursor=pointer]:
+                  - img "Show password text" [ref=e75]
+            - button "Entrar" [ref=e80] [cursor=pointer]:
+              - paragraph [ref=e84]: Entrar
+          - separator [ref=e89]
+          - paragraph [ref=e94]: "Ou entre com sua conta Google:"
+          - button "🔐 Entrar com Google" [ref=e97] [cursor=pointer]:
+            - paragraph [ref=e101]: 🔐 Entrar com Google

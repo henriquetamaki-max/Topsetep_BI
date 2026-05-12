@@ -32,6 +32,13 @@ from supabase import Client, create_client
 _ENV_FILE = Path(__file__).resolve().parent / "Env" / "Topstep_bi.env"
 
 
+def _t(key: str, **kwargs) -> str:
+    """Resolve uma string i18n. Import tardio para evitar ciclo com i18n.py
+    (que importa auth para ler user_metadata)."""
+    from i18n import t as _real_t  # noqa: PLC0415
+    return _real_t(key, **kwargs)
+
+
 def _read_secret(*names: str) -> str | None:
     """Lê um segredo de st.secrets, depois env var. Retorna None se nenhum existir."""
     for name in names:
@@ -55,11 +62,7 @@ def _client_anon() -> Client:
     url = _read_secret("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL")
     key = _read_secret("SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY")
     if not url or not key:
-        st.error(
-            "Credenciais Supabase ausentes. Defina SUPABASE_URL e "
-            "SUPABASE_ANON_KEY em `.streamlit/secrets.toml` (deploy) ou em "
-            "`Env/Topstep_bi.env` (local)."
-        )
+        st.error(_t("auth.err_credentials_missing"))
         st.stop()
     return create_client(url, key)
 
@@ -118,7 +121,7 @@ def _handle_oauth_callback() -> bool:
         st.query_params.clear()
         return True
     except Exception as e:
-        st.error(f"Falha no login Google: {e}")
+        st.error(_t("auth.err_google_callback", err=e))
         st.query_params.clear()
         return False
 
@@ -165,17 +168,17 @@ def _sign_in_google() -> None:
         )
         url = getattr(r, "url", None) or (r.get("url") if isinstance(r, dict) else None)
         if not url:
-            st.error("Não foi possível iniciar o login Google.")
+            st.error(_t("auth.err_google_init"))
             return
         # Redireciona a aba do usuário para o consent screen do Google.
         st.markdown(
             f'<meta http-equiv="refresh" content="0; url={url}">',
             unsafe_allow_html=True,
         )
-        st.link_button("Continuar para o Google", url)
+        st.link_button(_t("auth.btn_google_continue"), url)
         st.stop()
     except Exception as e:
-        st.error(f"Erro no login Google: {e}")
+        st.error(_t("auth.err_google_generic", err=e))
 
 
 def sign_out() -> None:
@@ -197,50 +200,50 @@ def login_screen() -> None:
     if _handle_oauth_callback():
         st.rerun()
 
-    st.title("BI TopStep")
-    st.caption("Faça login para acessar seu dashboard de trades.")
+    st.title(_t("app.title"))
+    st.caption(_t("auth.login_caption"))
 
-    tab_login, tab_signup = st.tabs(["Entrar", "Cadastrar"])
+    tab_login, tab_signup = st.tabs([_t("auth.tab_login"), _t("auth.tab_signup")])
 
     with tab_login:
         with st.form("login_form", clear_on_submit=False):
-            email = st.text_input("Email", key="login_email")
-            password = st.text_input("Senha", type="password", key="login_password")
-            submitted = st.form_submit_button("Entrar", type="primary", use_container_width=True)
+            email = st.text_input(_t("auth.email"), key="login_email")
+            password = st.text_input(_t("auth.password"), type="password", key="login_password")
+            submitted = st.form_submit_button(
+                _t("auth.submit_login"), type="primary", use_container_width=True,
+            )
         if submitted:
             ok, err = _sign_in_email(email.strip(), password)
             if ok:
                 st.rerun()
             else:
-                st.error(f"Falha no login: {err}")
+                st.error(_t("auth.err_login", err=err))
 
         st.divider()
-        st.caption("Ou entre com sua conta Google:")
-        if st.button("🔐 Entrar com Google", use_container_width=True, key="btn_google"):
+        st.caption(_t("auth.or_google"))
+        if st.button(_t("auth.btn_google"), use_container_width=True, key="btn_google"):
             _sign_in_google()
 
     with tab_signup:
         with st.form("signup_form", clear_on_submit=False):
-            new_email = st.text_input("Email", key="signup_email")
+            new_email = st.text_input(_t("auth.email"), key="signup_email")
             new_password = st.text_input(
-                "Senha (mínimo 6 caracteres)", type="password", key="signup_password"
+                _t("auth.password_min"), type="password", key="signup_password",
             )
             signup_submitted = st.form_submit_button(
-                "Criar conta", type="primary", use_container_width=True
+                _t("auth.submit_signup"), type="primary", use_container_width=True,
             )
         if signup_submitted:
             if len(new_password) < 6:
-                st.error("Senha precisa ter ao menos 6 caracteres.")
+                st.error(_t("auth.err_password_min"))
             else:
                 ok, msg = _sign_up_email(new_email.strip(), new_password)
                 if ok and msg == "confirm_email":
-                    st.success(
-                        "Conta criada. Verifique seu email para confirmar antes de entrar."
-                    )
+                    st.success(_t("auth.signup_confirm_email"))
                 elif ok:
-                    st.success("Conta criada e logada.")
+                    st.success(_t("auth.signup_ok"))
                     st.rerun()
                 else:
-                    st.error(f"Falha no cadastro: {msg}")
+                    st.error(_t("auth.err_signup", err=msg))
 
     st.stop()

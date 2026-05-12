@@ -22,6 +22,7 @@ import pandas as pd
 from supabase import Client
 
 import auth
+import i18n
 import metrics
 
 _TZ_SP = ZoneInfo("America/Sao_Paulo")
@@ -44,7 +45,7 @@ class FilterContext:
     contracts: list[str]
     types: list[str]
     weekdays: list[str]
-    result_filter: str  # "Todos" | "Só ganhadores" | "Só perdedores"
+    result_filter: str  # "all" | "winners" | "losers"
 
 
 # ---------------------------------------------------------------------------
@@ -135,9 +136,9 @@ def _baseline_window(df_all: pd.DataFrame, ctx: FilterContext) -> dict | None:
         & (df_all["type"].isin(ctx.types))
         & (df_all["weekday"].isin(ctx.weekdays))
     ].copy()
-    if ctx.result_filter == "Só ganhadores":
+    if ctx.result_filter == "winners":
         base_df = base_df[base_df["pnl_net"] > 0]
-    elif ctx.result_filter == "Só perdedores":
+    elif ctx.result_filter == "losers":
         base_df = base_df[base_df["pnl_net"] <= 0]
     if base_df.empty:
         return None
@@ -147,29 +148,54 @@ def _baseline_window(df_all: pd.DataFrame, ctx: FilterContext) -> dict | None:
     return summary
 
 
+def _lookup(lang: str, key: str) -> str:
+    """Lê uma string i18n para um idioma específico (sem depender do session_state).
+    Fallback para `en`. Útil em ambientes onde a função roda fora de um rerun
+    Streamlit ativo (testes, scripts).
+    """
+    msg = i18n._load_locale(lang).get(key)
+    if msg is None and lang != i18n.DEFAULT_LANG:
+        msg = i18n._load_locale(i18n.DEFAULT_LANG).get(key)
+    return msg if msg is not None else key
+
+
 def build_prompt(
     df: pd.DataFrame,
     groups: pd.DataFrame,
     df_all: pd.DataFrame,
     ctx: FilterContext,
     history: list[dict] | None = None,
+    lang: str | None = None,
 ) -> str:
     """Monta o prompt completo para ser copiado e colado em uma UI de LLM.
+
+    `lang` define o idioma do prompt e da resposta esperada da LLM. Se None,
+    usa o idioma corrente do app (i18n.current_lang()).
 
     Se `history` for fornecido (lista de dicts com `created_at`, `period_start`,
     `period_end` e `response_text`), inclui uma seção de avisos anteriores
     pedindo que a LLM cobre o trader em caso de reincidência.
     """
+    if lang is None:
+        lang = i18n.current_lang()
     current = _summarize(df, groups)
     current["range"] = {"start": ctx.start.isoformat(), "end": ctx.end.isoformat()}
     baseline = _baseline_window(df_all, ctx)
 
-    filters_str = (
-        f"Período: {ctx.start.isoformat()} a {ctx.end.isoformat()} · "
-        f"Contratos: {', '.join(ctx.contracts)} · "
-        f"Tipos: {', '.join(ctx.types)} · "
-        f"Dias: {', '.join(ctx.weekdays)} · "
-        f"Resultado: {ctx.result_filter}"
+    # result_filter no contexto é a key interna ("all"/"winners"/"losers");
+    # traduz para o idioma do prompt para que o texto fique consistente.
+    result_label = _lookup(lang, f"sidebar.result.{ctx.result_filter}")
+
+    weekdays_localized = [
+        _lookup(lang, f"weekday.{w.lower()}") for w in ctx.weekdays
+    ]
+    filters_str = _lookup(lang, "coach.prompt.filters_str").format(
+        start=ctx.start.isoformat(),
+        end=ctx.end.isoformat(),
+        contracts=", ".join(ctx.contracts),
+        types=", ".join(ctx.types),
+        weekdays=", ".join(weekdays_localized),
+        result=result_label,
     )
 
     payload = {
@@ -179,58 +205,26 @@ def build_prompt(
     payload_json = json.dumps(payload, ensure_ascii=False, indent=2, default=str)
 
     now_sp = datetime.now(_TZ_SP)
-    header = (
-        f"Trades de: {ctx.start.strftime('%d/%m/%Y')} a {ctx.end.strftime('%d/%m/%Y')}\n"
-        f"Hora: {now_sp.strftime('%H:%M')}\n\n"
+    header = _lookup(lang, "coach.prompt.header").format(
+        start=ctx.start.strftime('%d/%m/%Y'),
+        end=ctx.end.strftime('%d/%m/%Y'),
+        time=now_sp.strftime('%H:%M'),
     )
 
-    history_block = _format_history_block(history) if history else ""
+    history_block = _format_history_block(history, lang) if history else ""
 
-    prompt = header + f"""Você é um coach de trading especializado em day trading de futuros (mini índices, mini SP, etc).
+    system = _lookup(lang, "coach.prompt.system").format(
+        filters=filters_str,
+        history_block=history_block,
+        payload=payload_json,
+    )
+    glossary = _lookup(lang, "coach.prompt.glossary")
+    deliver = _lookup(lang, "coach.prompt.deliver").format(
+        language=i18n.LANG_NATIVE_NAME.get(lang, "English"),
+    )
+    rules = _lookup(lang, "coach.prompt.rules")
 
-Estou te enviando um snapshot agregado das minhas operações em um período filtrado, junto com um período-baseline imediatamente anterior do mesmo tamanho pra você comparar tendência. Os dados já foram pré-processados — você NÃO precisa consultar nenhum banco. Trabalhe SÓ com o JSON abaixo.
-
-FILTROS APLICADOS: {filters_str}
-{history_block}
-
-DADOS (JSON):
-```json
-{payload_json}
-```
-
-Glossário rápido:
-- pnl_net: lucro líquido em USD (já descontadas fees + commissions).
-- net_points: pontos líquidos do contrato (independente do tamanho).
-- rr_average / rr_aggregate: razão risco/retorno em pontos.
-- revenge: trades abertos <5min depois de uma perda acima da média.
-- cut_winners_hold_losers.ratio: razão entre duração média de losses e wins. >2 é assimétrico.
-- overtrading.threshold: p75 de trades/dia; dias acima são "tilt days".
-- leaks: combinações (contrato × dia × hora) com PnL negativo acumulado.
-- strengths: análogo positivo.
-- baseline_period: mesmo conjunto de filtros aplicado ao período anterior de mesma duração (pode ser null se não houver dados anteriores).
-
-ENTREGUE em markdown, em português, com estas 4 seções obrigatórias:
-
-## 1. Resumo executivo
-3 a 5 bullets curtos: o que está funcionando, o que está sangrando. Cite números concretos.
-
-## 2. Padrões comportamentais
-Comente revenge, cortar/segurar, overtrading e maior losing streak. Para cada um: diga se é problema relevante OU se está sob controle. Se a amostra for pequena demais pra conclusão, diga.
-
-## 3. Comparação com período anterior
-Se baseline_period existe: PnL evoluiu? Win rate? Profit factor? Os padrões comportamentais melhoraram ou pioraram? Se não existe, diga "Sem baseline comparável" e siga.
-
-## 4. Checklist acionável para a próxima sessão
-3 a 6 regras concretas pra eu aplicar amanhã. Específicas: contrato, horário, dia, condição. Cada regra tem que ser executável ("Não opere MNQ depois das 15h às quartas" — não "tome mais cuidado").
-
-REGRAS:
-- Seja direto. Não enrole.
-- Não invente padrões que os dados não suportam. Se a amostra é < 30 trades em algum corte, diga.
-- Não cite o JSON literalmente; traduza pra linguagem de trader.
-- Se total_pnl_net for positivo, reconheça — mas mantenha visão crítica.
-- Se a seção AVISOS ANTERIORES existir e o trader estiver repetindo um padrão já apontado, seja MAIS DURO: cite explicitamente "isso você já foi avisado em [data]", cobre por que não foi corrigido, e exija ação no checklist da próxima sessão.
-"""
-    return prompt
+    return f"{header}{system}\n\n{glossary}\n\n{deliver}\n\n{rules}\n"
 
 
 # ---------------------------------------------------------------------------
@@ -288,29 +282,33 @@ def _extract_checklist(response_text: str) -> list[str]:
     return [b for b in bullets if b][:10]
 
 
-def _format_history_block(history: list[dict]) -> str:
+def _format_history_block(history: list[dict], lang: str | None = None) -> str:
     """Monta o bloco 'AVISOS ANTERIORES' a ser injetado no prompt."""
     if not history:
         return ""
-    lines = [
-        "",
-        "AVISOS ANTERIORES (análises passadas sobre estes mesmos contratos):",
-    ]
+    if lang is None:
+        lang = i18n.current_lang()
+    lines = ["", _lookup(lang, "coach.prompt.history_header")]
     for h in history:
         when = h.get("created_at", "")
         if isinstance(when, str) and len(when) >= 10:
             when_fmt = when[:10]
         else:
             when_fmt = str(when)
-        period = f"{h.get('period_start', '?')} a {h.get('period_end', '?')}"
+        period = f"{h.get('period_start', '?')} - {h.get('period_end', '?')}"
         bullets = _extract_checklist(h.get("response_text", "") or "")
-        lines.append(f"\n[{when_fmt} · período analisado: {period}]")
+        lines.append("")
+        lines.append(_lookup(lang, "coach.prompt.history_entry").format(
+            when=when_fmt, period=period,
+        ))
         if bullets:
             for b in bullets:
                 lines.append(f"- {b}")
         else:
             text = (h.get("response_text") or "").strip().replace("\n", " ")
-            lines.append(f"(sem checklist extraível) {text[:300]}")
+            lines.append(_lookup(lang, "coach.prompt.history_no_checklist").format(
+                text=text[:300],
+            ))
     return "\n".join(lines) + "\n"
 
 

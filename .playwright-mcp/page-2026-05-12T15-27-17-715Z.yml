@@ -1,0 +1,41 @@
+- generic [ref=e3]:
+  - banner [ref=e6]:
+    - generic [ref=e9]:
+      - button "Deploy" [ref=e11] [cursor=pointer]:
+        - generic [ref=e13]: Deploy
+      - button "Main menu" [ref=e15] [cursor=pointer]:
+        - img [ref=e16]
+  - generic [ref=e19]:
+    - heading "BI TopStep" [level=1] [ref=e24]:
+      - text: BI TopStep
+      - generic [ref=e25]:
+        - link "Link to heading":
+          - /url: "#bi-top-step"
+          - img
+    - paragraph [ref=e30]: Sign in to access your trade dashboard.
+    - generic [ref=e32]:
+      - tablist [ref=e34]:
+        - tab "Sign in" [selected] [ref=e35] [cursor=pointer]:
+          - paragraph [ref=e37]: Sign in
+        - tab "Sign up" [ref=e38] [cursor=pointer]:
+          - paragraph [ref=e40]: Sign up
+      - tabpanel "Sign in" [ref=e43]:
+        - generic [ref=e44]:
+          - generic [ref=e47]:
+            - generic [ref=e49]:
+              - paragraph [ref=e53]: Email
+              - textbox "Email" [ref=e56]:
+                - /placeholder: ""
+            - generic [ref=e58]:
+              - paragraph [ref=e62]: Password
+              - generic [ref=e64]:
+                - textbox "Password" [ref=e65]:
+                  - /placeholder: ""
+                - button "Show password text" [ref=e66] [cursor=pointer]:
+                  - img "Show password text" [ref=e67]
+            - button "Sign in" [ref=e72] [cursor=pointer]:
+              - paragraph [ref=e76]: Sign in
+          - separator [ref=e81]
+          - paragraph [ref=e86]: "Or sign in with your Google account:"
+          - button "🔐 Sign in with Google" [ref=e89] [cursor=pointer]:
+            - paragraph [ref=e93]: 🔐 Sign in with Google

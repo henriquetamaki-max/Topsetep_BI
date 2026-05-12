@@ -22,8 +22,10 @@ import streamlit as st
 import action_plan
 import auth
 import coach_ai
+import i18n
 import ingest_core
 import metrics
+from i18n import t
 
 ROOT = Path(__file__).resolve().parent
 
@@ -105,6 +107,11 @@ st.markdown(
 
 auth.login_screen()  # bloqueia o app se o usuário não estiver logado
 _user = auth.current_user()
+
+# i18n: precisa rodar depois do login para conseguir ler preferred_language
+# do user_metadata. O language_selector é renderizado mais abaixo, no topo
+# da sidebar.
+i18n.init()
 
 
 # ----------------------------- Data loading ----------------------------------
@@ -245,21 +252,21 @@ def render_dashboard(
 
     daily_pnl = df.groupby("trade_day", as_index=False)["pnl_net"].sum().sort_values("trade_day")
 
-    st.subheader("KPIs em $")
+    st.subheader(t("dash.kpis_usd"))
     c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.metric("Total PnL líquido", fmt_money(total_pnl))
-    c2.metric("Trade Win %", f"{win_rate:.1f}%")
+    c1.metric(t("dash.kpi.total_pnl_net"), fmt_money(total_pnl))
+    c2.metric(t("dash.kpi.trade_win_pct"), f"{win_rate:.1f}%")
     c3.metric(
-        "Avg Win / Avg Loss",
+        t("dash.kpi.avg_win_loss"),
         f"{fmt_money(overview['avg_winning_trade'])} / {fmt_money(overview['avg_losing_trade'])}",
     )
     c4.metric(
-        "Day Win %",
+        t("dash.kpi.day_win_pct"),
         f"{overview['day_win_pct'] * 100:.1f}%",
-        f"{overview['winning_days']}/{overview['total_days']} dias",
+        t("dash.kpi.day_win_delta", wins=overview['winning_days'], total=overview['total_days']),
     )
-    c5.metric("Profit Factor", f"{profit_factor:.2f}" if profit_factor != float("inf") else "∞")
-    c6.metric("Best Day % of Total Profit", f"{overview['best_day_pct_of_total'] * 100:.1f}%")
+    c5.metric(t("dash.kpi.profit_factor"), f"{profit_factor:.2f}" if profit_factor != float("inf") else "∞")
+    c6.metric(t("dash.kpi.best_day_pct"), f"{overview['best_day_pct_of_total'] * 100:.1f}%")
 
     # --- KPIs em $ (linha 2) — volume e direção ------------------------------
     c7, c8, c9, c10, c11, c12 = st.columns(6)
@@ -268,37 +275,37 @@ def render_dashboard(
     worst_day_date = overview["worst_day"][0] if overview["worst_day"] else None
     worst_day_val = overview["worst_day"][1] if overview["worst_day"] else 0.0
 
-    c7.metric("Trades", f"{total_trades}")
-    c8.metric("Total Lots Traded", f"{overview['total_lots']:,}")
-    c9.metric("Avg Trade Duration", fmt_duration(overview["avg_trade_duration_sec"]))
-    c10.metric("Avg Win Duration", fmt_duration(overview["avg_win_duration_sec"]))
-    c11.metric("Melhor dia", fmt_money(best_day_val), f"{best_day_date}" if best_day_date else "")
-    c12.metric("Pior dia", fmt_money(worst_day_val), f"{worst_day_date}" if worst_day_date else "")
+    c7.metric(t("dash.kpi.trades"), f"{total_trades}")
+    c8.metric(t("dash.kpi.total_lots"), f"{overview['total_lots']:,}")
+    c9.metric(t("dash.kpi.avg_duration"), fmt_duration(overview["avg_trade_duration_sec"]))
+    c10.metric(t("dash.kpi.avg_win_duration"), fmt_duration(overview["avg_win_duration_sec"]))
+    c11.metric(t("dash.kpi.best_day"), fmt_money(best_day_val), f"{best_day_date}" if best_day_date else "")
+    c12.metric(t("dash.kpi.worst_day"), fmt_money(worst_day_val), f"{worst_day_date}" if worst_day_date else "")
 
     # --- Best/Worst Trade individual + Trade Direction -----------------------
     bt = overview["best_trade"]
     wt = overview["worst_trade"]
 
-    def _trade_card(title: str, t: dict | None, accent: str) -> str:
-        if not t:
+    def _trade_card(title: str, trade: dict | None, accent: str) -> str:
+        if not trade:
             return f"<div class='segment-box'><h4 style='color:{accent}'>{title}</h4><p>—</p></div>"
-        entered = pd.to_datetime(t["entered_at"]).tz_convert("America/Sao_Paulo")
+        entered = pd.to_datetime(trade["entered_at"]).tz_convert("America/Sao_Paulo")
         return f"""
         <div class="segment-box">
             <h4 style="color:{accent}">{title}</h4>
-            <div class="segment-row"><span>PnL líquido</span>
-                <span class="{color_class(t['pnl_net'])}">{fmt_money(t['pnl_net'])}</span></div>
-            <div class="segment-row"><span>Contrato</span><span>{t['contract_name']} · {t['type']}</span></div>
-            <div class="segment-row"><span>Qtd</span><span>{t['size']}</span></div>
-            <div class="segment-row"><span>Entrada @</span><span>{t['entry_price']:,.2f}</span></div>
-            <div class="segment-row"><span>Saída @</span><span>{t['exit_price']:,.2f}</span></div>
-            <div class="segment-row"><span>Data</span><span>{entered.strftime('%d/%m %H:%M')}</span></div>
+            <div class="segment-row"><span>{t('dash.card.pnl_net')}</span>
+                <span class="{color_class(trade['pnl_net'])}">{fmt_money(trade['pnl_net'])}</span></div>
+            <div class="segment-row"><span>{t('dash.card.contract')}</span><span>{trade['contract_name']} · {trade['type']}</span></div>
+            <div class="segment-row"><span>{t('dash.card.qty')}</span><span>{trade['size']}</span></div>
+            <div class="segment-row"><span>{t('dash.card.entry_at')}</span><span>{trade['entry_price']:,.2f}</span></div>
+            <div class="segment-row"><span>{t('dash.card.exit_at')}</span><span>{trade['exit_price']:,.2f}</span></div>
+            <div class="segment-row"><span>{t('dash.card.date')}</span><span>{entered.strftime('%d/%m %H:%M')}</span></div>
         </div>
         """
 
     bt_col, wt_col, dir_col = st.columns([1, 1, 1])
-    bt_col.markdown(_trade_card("Best Trade", bt, GREEN), unsafe_allow_html=True)
-    wt_col.markdown(_trade_card("Worst Trade", wt, RED), unsafe_allow_html=True)
+    bt_col.markdown(_trade_card(t("dash.best_trade"), bt, GREEN), unsafe_allow_html=True)
+    wt_col.markdown(_trade_card(t("dash.worst_trade"), wt, RED), unsafe_allow_html=True)
     with dir_col:
         if total_trades:
             fig = go.Figure(
@@ -313,28 +320,28 @@ def render_dashboard(
             )
             fig.update_layout(
                 **PLOTLY_LAYOUT, height=220,
-                title="Trade Direction %", showlegend=False,
+                title=t("dash.direction_title"), showlegend=False,
             )
             st.plotly_chart(fig, use_container_width=True)
 
     # --- KPIs em pontos ------------------------------------------------------
-    st.subheader("KPIs em pontos")
+    st.subheader(t("dash.kpis_pts"))
     p1, p2, p3, p4, p5, p6 = st.columns(6)
-    p1.metric("Net Points", fmt_pts(pts_kpis["total_net_points"]))
-    p2.metric("Avg Win Pts", f"{pts_kpis['avg_winning_trade_points']:.2f}")
-    p3.metric("Avg Loss Pts", f"{pts_kpis['avg_losing_trade_points']:.2f}")
-    p4.metric("R/R Average", f"{pts_kpis['rr_average']:.2f}")
-    p5.metric("R/R Aggregate", f"{pts_kpis['rr_aggregate']:.2f}")
+    p1.metric(t("dash.kpi.net_points"), fmt_pts(pts_kpis["total_net_points"]))
+    p2.metric(t("dash.kpi.avg_win_pts"), f"{pts_kpis['avg_winning_trade_points']:.2f}")
+    p3.metric(t("dash.kpi.avg_loss_pts"), f"{pts_kpis['avg_losing_trade_points']:.2f}")
+    p4.metric(t("dash.kpi.rr_average"), f"{pts_kpis['rr_average']:.2f}")
+    p5.metric(t("dash.kpi.rr_aggregate"), f"{pts_kpis['rr_aggregate']:.2f}")
     p6.metric(
-        "Operações (grupos)",
+        t("dash.kpi.operations"),
         f"{pts_kpis['total_grouped_operations']}",
-        f"Win Rate: {fmt_pct(pts_kpis['win_rate_grouped'])}",
+        t("dash.kpi.operations_delta", wr=fmt_pct(pts_kpis['win_rate_grouped'])),
     )
 
     st.divider()
 
     # --- Equity curves ($ e pontos) -----------------------------------------
-    st.subheader("Equity curve")
+    st.subheader(t("dash.equity_curve"))
     eq = df_with_groups.sort_values("entered_at").copy()
     eq["cum_pnl"] = eq["pnl_net"].cumsum()
     eq["cum_pts"] = eq["points"].cumsum()
@@ -350,7 +357,7 @@ def render_dashboard(
                 hovertemplate="<b>%{x}</b><br>PnL acum: $%{y:,.2f}<extra></extra>",
             )
         )
-        fig.update_layout(**PLOTLY_LAYOUT, height=300, title="PnL líquido acumulado ($)")
+        fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.cum_pnl_usd"))
         st.plotly_chart(fig, use_container_width=True)
 
     with col_eq2:
@@ -363,15 +370,15 @@ def render_dashboard(
                 hovertemplate="<b>%{x}</b><br>Pontos acum: %{y:,.2f}<extra></extra>",
             )
         )
-        fig.update_layout(**PLOTLY_LAYOUT, height=300, title="Pontos acumulados")
+        fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.cum_points"))
         st.plotly_chart(fig, use_container_width=True)
 
     # --- Daily charts (TopStepX style) --------------------------------------
     col_d1, col_d2 = st.columns(2)
 
     with col_d1:
-        st.subheader("Pontos diários")
-        st.caption("Clique nas barras (ou desenhe um box) para filtrar dias.")
+        st.subheader(t("dash.daily_points"))
+        st.caption(t("dash.daily_points_hint"))
         if not daily.empty:
             fig = go.Figure()
             fig.add_trace(
@@ -399,7 +406,7 @@ def render_dashboard(
             _apply_day_selection_from_event(event)
 
     with col_d2:
-        st.subheader("Contratos por dia (size)")
+        st.subheader(t("dash.daily_size"))
         if not daily.empty:
             fig = go.Figure()
             fig.add_trace(
@@ -424,7 +431,7 @@ def render_dashboard(
     col_a, col_b = st.columns(2)
 
     with col_a:
-        st.subheader("PnL por dia da semana")
+        st.subheader(t("dash.pnl_by_weekday"))
         wd = df.groupby("weekday", as_index=False)["pnl_net"].sum()
         wd["order"] = wd["weekday"].map({d: i for i, d in enumerate(
             ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -441,7 +448,7 @@ def render_dashboard(
         st.plotly_chart(fig, use_container_width=True)
 
     with col_b:
-        st.subheader("PnL por hora de entrada (BRT)")
+        st.subheader(t("dash.pnl_by_hour"))
         hr = df.groupby("entry_hour", as_index=False)["pnl_net"].sum()
         fig = go.Figure(
             go.Bar(
@@ -450,14 +457,14 @@ def render_dashboard(
                 hovertemplate="<b>%{x}h</b><br>PnL: $%{y:,.2f}<extra></extra>",
             )
         )
-        fig.update_layout(**PLOTLY_LAYOUT, height=300, xaxis_title="Hora (BRT)")
+        fig.update_layout(**PLOTLY_LAYOUT, height=300, xaxis_title=t("dash.axis_hour"))
         st.plotly_chart(fig, use_container_width=True)
 
     # --- PnL por contrato + heatmap calendário ------------------------------
     col_c, col_d = st.columns([1, 2])
 
     with col_c:
-        st.subheader("PnL por contrato")
+        st.subheader(t("dash.pnl_by_contract"))
         ct = df.groupby("contract_name", as_index=False)["pnl_net"].sum().sort_values("pnl_net")
         fig = go.Figure(
             go.Bar(
@@ -470,8 +477,8 @@ def render_dashboard(
         st.plotly_chart(fig, use_container_width=True)
 
     with col_d:
-        st.subheader("Calendário de PnL diário")
-        st.caption("Clique nas células (ou desenhe um box) para filtrar dias.")
+        st.subheader(t("dash.calendar"))
+        st.caption(t("dash.calendar_hint"))
         cal = daily_pnl.copy()
         if not cal.empty:
             cal["trade_day"] = pd.to_datetime(cal["trade_day"])
@@ -519,7 +526,11 @@ def render_dashboard(
             fig = go.Figure(
                 go.Heatmap(
                     z=pivot.values,
-                    x=["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"],
+                    x=[
+                        t("weekday.short.mon"), t("weekday.short.tue"), t("weekday.short.wed"),
+                        t("weekday.short.thu"), t("weekday.short.fri"), t("weekday.short.sat"),
+                        t("weekday.short.sun"),
+                    ],
                     y=week_labels,
                     customdata=date_pivot.values,
                     colorscale=[[0.0, RED], [0.5, "#1a1d24"], [1.0, GREEN]],
@@ -543,7 +554,7 @@ def render_dashboard(
     st.divider()
 
     # --- Net Daily P&L ($) + Daily Cumulative ($) ---------------------------
-    st.subheader("Daily P&L ($)")
+    st.subheader(t("dash.daily_pnl_usd"))
     col_n1, col_n2 = st.columns(2)
     if not daily_pnl.empty:
         cum = daily_pnl.copy()
@@ -557,7 +568,7 @@ def render_dashboard(
                     hovertemplate="<b>%{x}</b><br>Cumulative: $%{y:,.2f}<extra></extra>",
                 )
             )
-            fig.update_layout(**PLOTLY_LAYOUT, height=300, title="Daily Net Cumulative P&L")
+            fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.daily_cum_title"))
             st.plotly_chart(fig, use_container_width=True)
         with col_n2:
             fig = go.Figure(
@@ -567,7 +578,7 @@ def render_dashboard(
                     hovertemplate="<b>%{x}</b><br>PnL: $%{y:,.2f}<extra></extra>",
                 )
             )
-            fig.update_layout(**PLOTLY_LAYOUT, height=300, title="Net Daily P&L")
+            fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.daily_net_title"))
             st.plotly_chart(fig, use_container_width=True)
 
     # --- Trade Duration Analysis + Win Rate Analysis -------------------------
@@ -575,7 +586,7 @@ def render_dashboard(
     if not duration_buckets.empty and duration_buckets["trades"].sum() > 0:
         col_du1, col_du2 = st.columns(2)
         with col_du1:
-            st.subheader("Trade Duration Analysis")
+            st.subheader(t("dash.duration_analysis"))
             fig = go.Figure(
                 go.Bar(
                     x=duration_buckets["trades"], y=duration_buckets["bucket"],
@@ -588,7 +599,7 @@ def render_dashboard(
             fig.update_yaxes(autorange="reversed")
             st.plotly_chart(fig, use_container_width=True)
         with col_du2:
-            st.subheader("Win Rate Analysis")
+            st.subheader(t("dash.win_rate_analysis"))
             wr = duration_buckets.copy()
             # Mostra apenas buckets com pelo menos 1 trade para evitar barras
             # falsas de 0% que confundem leitura.
@@ -611,11 +622,8 @@ def render_dashboard(
     st.divider()
 
     # --- Análise de Adições (expander) --------------------------------------
-    with st.expander("Análise de Adições (operações agrupadas)", expanded=False):
-        st.caption(
-            "Trades que se sobrepõem no tempo (mesmo contrato + tipo) viram uma "
-            "**operação** (grupo). Adições = trades extras dentro da mesma operação."
-        )
+    with st.expander(t("dash.additions_expander"), expanded=False):
+        st.caption(t("dash.additions_caption"))
 
         def render_segment(title: str, seg: dict, accent: str = TEXT) -> str:
             pnl_cls = color_class(seg["total_pnl"])
@@ -623,32 +631,32 @@ def render_dashboard(
             return f"""
             <div class="segment-box">
                 <h4 style="color:{accent}">{title}</h4>
-                <div class="segment-row"><span>Count</span><span>{seg['count']}</span></div>
-                <div class="segment-row"><span>Total Pts</span>
+                <div class="segment-row"><span>{t('dash.seg.count')}</span><span>{seg['count']}</span></div>
+                <div class="segment-row"><span>{t('dash.seg.total_pts')}</span>
                     <span class="{pts_cls}">{seg['total_points']:+,.2f}</span></div>
-                <div class="segment-row"><span>Avg Pts</span>
+                <div class="segment-row"><span>{t('dash.seg.avg_pts')}</span>
                     <span class="{pts_cls}">{seg['avg_points']:+,.2f}</span></div>
-                <div class="segment-row"><span>Total PnL</span>
+                <div class="segment-row"><span>{t('dash.seg.total_pnl')}</span>
                     <span class="{pnl_cls}">$ {seg['total_pnl']:,.2f}</span></div>
-                <div class="segment-row"><span>Avg PnL</span>
+                <div class="segment-row"><span>{t('dash.seg.avg_pnl')}</span>
                     <span class="{pnl_cls}">$ {seg['avg_pnl']:,.2f}</span></div>
-                <div class="segment-row"><span>Win Rate</span>
+                <div class="segment-row"><span>{t('dash.seg.win_rate')}</span>
                     <span>{seg['win_rate_by_group'] * 100:.1f}%</span></div>
-                <div class="segment-row"><span>Avg Adições</span>
+                <div class="segment-row"><span>{t('dash.seg.avg_additions')}</span>
                     <span>{seg['avg_additions']:.2f}</span></div>
-                <div class="segment-row"><span>Total Size</span>
+                <div class="segment-row"><span>{t('dash.seg.total_size')}</span>
                     <span>{int(seg['total_size'])}</span></div>
             </div>
             """
 
         s1, s2, s3, s4 = st.columns(4)
-        s1.markdown(render_segment("Sem adição", segments["no_additions"], MUTED), unsafe_allow_html=True)
-        s2.markdown(render_segment("Com adição", segments["with_additions"], BLUE), unsafe_allow_html=True)
-        s3.markdown(render_segment("Adições vencedoras", segments["with_additions_winners"], GREEN), unsafe_allow_html=True)
-        s4.markdown(render_segment("Adições perdedoras", segments["with_additions_losers"], RED), unsafe_allow_html=True)
+        s1.markdown(render_segment(t("dash.seg.no_additions"), segments["no_additions"], MUTED), unsafe_allow_html=True)
+        s2.markdown(render_segment(t("dash.seg.with_additions"), segments["with_additions"], BLUE), unsafe_allow_html=True)
+        s3.markdown(render_segment(t("dash.seg.with_winners"), segments["with_additions_winners"], GREEN), unsafe_allow_html=True)
+        s4.markdown(render_segment(t("dash.seg.with_losers"), segments["with_additions_losers"], RED), unsafe_allow_html=True)
 
         st.markdown("&nbsp;")
-        st.markdown("**Operações agrupadas**")
+        st.markdown(t("dash.groups_title"))
         if not groups.empty:
             g_show = groups.sort_values("group_start", ascending=False)[
                 [
@@ -658,18 +666,18 @@ def render_dashboard(
                 ]
             ].rename(
                 columns={
-                    "group_id": "Grupo",
-                    "contract_name": "Contrato",
-                    "type": "Tipo",
-                    "group_start": "Início",
-                    "group_end": "Fim",
-                    "trade_count": "# trades",
-                    "additions_count": "# adições",
-                    "total_points": "Total Pts",
-                    "total_pnl": "PnL bruto",
-                    "total_net_pnl": "PnL líquido",
-                    "duration_min": "Duração (min)",
-                    "points_status": "Status",
+                    "group_id": t("dash.groups.col.group"),
+                    "contract_name": t("dash.groups.col.contract"),
+                    "type": t("dash.groups.col.type"),
+                    "group_start": t("dash.groups.col.start"),
+                    "group_end": t("dash.groups.col.end"),
+                    "trade_count": t("dash.groups.col.trades"),
+                    "additions_count": t("dash.groups.col.additions"),
+                    "total_points": t("dash.groups.col.total_pts"),
+                    "total_pnl": t("dash.groups.col.pnl_gross"),
+                    "total_net_pnl": t("dash.groups.col.pnl_net"),
+                    "duration_min": t("dash.groups.col.duration_min"),
+                    "points_status": t("dash.groups.col.status"),
                 }
             )
             st.dataframe(g_show, use_container_width=True, hide_index=True, height=280)
@@ -677,7 +685,7 @@ def render_dashboard(
     st.divider()
 
     # --- Tabela de trades ---------------------------------------------------
-    st.subheader(f"Trades ({len(df)})")
+    st.subheader(t("dash.trades_title", n=len(df)))
     show = df_with_groups.sort_values("entered_at", ascending=False)[
         [
             "id", "trade_day", "contract_name", "type", "size",
@@ -686,20 +694,20 @@ def render_dashboard(
         ]
     ].rename(
         columns={
-            "id": "Trade ID",
-            "trade_day": "Dia",
-            "contract_name": "Contrato",
-            "type": "Tipo",
-            "size": "Qtd",
-            "entry_price": "Entrada",
-            "exit_price": "Saída",
-            "points": "Pts",
-            "pnl": "PnL bruto",
-            "fees": "Fees",
-            "commissions": "Comissões",
-            "pnl_net": "PnL líquido",
-            "trade_duration": "Duração",
-            "group_id": "Grupo",
+            "id": t("dash.trades.col.id"),
+            "trade_day": t("dash.trades.col.day"),
+            "contract_name": t("dash.trades.col.contract"),
+            "type": t("dash.trades.col.type"),
+            "size": t("dash.trades.col.qty"),
+            "entry_price": t("dash.trades.col.entry"),
+            "exit_price": t("dash.trades.col.exit"),
+            "points": t("dash.trades.col.points"),
+            "pnl": t("dash.trades.col.pnl_gross"),
+            "fees": t("dash.trades.col.fees"),
+            "commissions": t("dash.trades.col.commissions"),
+            "pnl_net": t("dash.trades.col.pnl_net"),
+            "trade_duration": t("dash.trades.col.duration"),
+            "group_id": t("dash.trades.col.group"),
         }
     )
     st.dataframe(show, use_container_width=True, hide_index=True, height=380)
@@ -717,23 +725,18 @@ def render_coach(
     ai_col1, ai_col2 = st.columns([1, 3])
     with ai_col1:
         gen_prompt = st.button(
-            "📋 Gerar prompt para análise em LLM",
+            t("coach.btn_gen_prompt"),
             type="primary",
             use_container_width=True,
-            help=(
-                "Monta um prompt completo com os dados filtrados. "
-                "Copie e cole na UI da LLM de sua preferência."
-            ),
+            help=t("coach.btn_gen_prompt_help"),
         )
     with ai_col2:
-        st.caption(
-            "Copie o prompt e cole em Gemini, Perplexity, ChatGPT ou Claude.ai."
-        )
+        st.caption(t("coach.copy_hint"))
 
     if gen_prompt:
         history = coach_ai.fetch_history(filter_ctx.contracts)
         st.session_state["coach_ai_prompt"] = coach_ai.build_prompt(
-            df, groups, df_all, filter_ctx, history=history
+            df, groups, df_all, filter_ctx, history=history, lang=i18n.current_lang()
         )
         st.session_state["coach_ai_history_count"] = len(history)
         st.session_state["coach_prompt_collapsed"] = False
@@ -742,28 +745,23 @@ def render_coach(
         with st.container(border=True):
             header_col, btn_col = st.columns([4, 1])
             with header_col:
-                st.markdown("### 📋 Prompt pronto para colar na LLM")
+                st.markdown(t("coach.prompt_ready"))
                 hist_n = st.session_state.get("coach_ai_history_count", 0)
                 if hist_n:
-                    st.caption(
-                        f"Incluí {hist_n} análise(s) anterior(es) sobre estes contratos — "
-                        "a LLM vai cobrar reincidência."
-                    )
+                    st.caption(t("coach.prompt_history_n", n=hist_n))
                 else:
-                    st.caption("Sem análises anteriores para estes contratos.")
+                    st.caption(t("coach.prompt_no_history"))
             with btn_col:
                 collapsed = st.session_state.get("coach_prompt_collapsed", False)
-                label = "📂 Expandir" if collapsed else "📁 Recolher"
+                label = t("coach.btn_expand") if collapsed else t("coach.btn_collapse")
                 if st.button(label, key="toggle_prompt", use_container_width=True):
                     st.session_state["coach_prompt_collapsed"] = not collapsed
                     st.rerun()
 
             if not st.session_state.get("coach_prompt_collapsed", False):
-                st.caption(
-                    "Clique no ícone de copiar no canto superior direito do bloco."
-                )
+                st.caption(t("coach.copy_icon_hint"))
                 st.code(st.session_state["coach_ai_prompt"], language="markdown")
-                with st.expander("Onde colar", expanded=False):
+                with st.expander(t("coach.where_to_paste"), expanded=False):
                     st.markdown(
                         "- Gemini: https://gemini.google.com\n"
                         "- Perplexity: https://perplexity.ai\n"
@@ -772,11 +770,8 @@ def render_coach(
                     )
 
         with st.container(border=True):
-            st.markdown("### 💾 Cole aqui a resposta da LLM e salve")
-            st.caption(
-                "Salva no Supabase (tabela coach_analyses). Análises futuras "
-                "deste contrato vão usar este texto para cobrar reincidência."
-            )
+            st.markdown(t("coach.paste_response_title"))
+            st.caption(t("coach.paste_response_caption"))
 
             # Limpa o textarea ANTES de instanciar o widget (flag setada no
             # ciclo anterior, após salvar com sucesso).
@@ -788,16 +783,16 @@ def render_coach(
                 st.success(last_saved)
 
             response_text = st.text_area(
-                "Resposta da LLM (markdown)",
+                t("coach.response_label"),
                 key="coach_response_text",
                 height=240,
-                placeholder="Cole aqui a análise completa que a LLM gerou...",
+                placeholder=t("coach.response_placeholder"),
                 label_visibility="collapsed",
             )
             save_col, status_col = st.columns([1, 3])
             with save_col:
                 save_clicked = st.button(
-                    "💾 Salvar análise",
+                    t("coach.btn_save"),
                     type="primary",
                     use_container_width=True,
                     disabled=not response_text.strip(),
@@ -807,23 +802,21 @@ def render_coach(
                     result = coach_ai.save_analysis(filter_ctx, response_text)
                     if result["ok"]:
                         st.session_state["coach_response_clear"] = True
-                        st.session_state["coach_response_saved_msg"] = (
-                            "Análise salva no Supabase."
-                        )
+                        st.session_state["coach_response_saved_msg"] = t("coach.save_ok")
                         st.rerun()
                     else:
-                        st.error(f"Erro ao salvar: {result['error']}")
+                        st.error(t("coach.save_err", err=result['error']))
 
     st.divider()
 
-    st.subheader("Resumo executivo")
+    st.subheader(t("coach.summary"))
     for bullet in coach["headline"]:
         st.markdown(f"- {bullet}")
 
     st.divider()
 
     # --- Padrões comportamentais --------------------------------------------
-    st.subheader("Padrões comportamentais")
+    st.subheader(t("coach.patterns"))
 
     rev = coach["revenge"]
     cut = coach["cut_winners_hold_losers"]
@@ -836,29 +829,26 @@ def render_coach(
         st.markdown(
             f"""
             <div class="coach-card">
-                <h4 style="color:{rev_color}">Revenge trading</h4>
-                <p>Trades abertos em até {metrics.REVENGE_WINDOW_MIN} min após uma perda
-                acima da média.</p>
-                <p><b>{rev['count']}</b> trades · PnL acumulado:
-                <span class="{color_class(rev['pnl'])}">{fmt_money(rev['pnl'])}</span></p>
-                <p>Avg PnL em revenge:
-                <span class="{color_class(rev['revenge_avg_pnl'])}">{fmt_money(rev['revenge_avg_pnl'])}</span>
-                · Avg PnL nos demais:
-                <span class="{color_class(rev['baseline_avg_pnl'])}">{fmt_money(rev['baseline_avg_pnl'])}</span></p>
+                <h4 style="color:{rev_color}">{t('coach.revenge.title')}</h4>
+                <p>{t('coach.revenge.desc', min=metrics.REVENGE_WINDOW_MIN)}</p>
+                <p>{t('coach.revenge.line1', count=rev['count'], cls=color_class(rev['pnl']), pnl=fmt_money(rev['pnl']))}</p>
+                <p>{t('coach.revenge.line2',
+                    cls_rev=color_class(rev['revenge_avg_pnl']), rev=fmt_money(rev['revenge_avg_pnl']),
+                    cls_base=color_class(rev['baseline_avg_pnl']), base=fmt_money(rev['baseline_avg_pnl']))}</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
         cut_color = RED if cut["flag"] else GREEN
+        cut_flag = t("coach.cut.flag_bad") if cut["flag"] else t("coach.cut.flag_ok")
         st.markdown(
             f"""
             <div class="coach-card">
-                <h4 style="color:{cut_color}">Cortar ganhos / segurar perdas</h4>
-                <p>Duração média de wins: <b>{fmt_duration(cut['avg_win_sec'])}</b></p>
-                <p>Duração média de losses: <b>{fmt_duration(cut['avg_loss_sec'])}</b></p>
-                <p>Razão loss/win: <b>{cut['ratio']:.2f}×</b>
-                {'⚠️ assimetria alta' if cut['flag'] else '✓ razoável'}</p>
+                <h4 style="color:{cut_color}">{t('coach.cut.title')}</h4>
+                <p>{t('coach.cut.avg_win', dur=fmt_duration(cut['avg_win_sec']))}</p>
+                <p>{t('coach.cut.avg_loss', dur=fmt_duration(cut['avg_loss_sec']))}</p>
+                <p>{t('coach.cut.ratio', ratio=cut['ratio'], flag=cut_flag)}</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -869,13 +859,12 @@ def render_coach(
         st.markdown(
             f"""
             <div class="coach-card">
-                <h4 style="color:{over_color}">Overtrading</h4>
-                <p>Threshold (p75 de trades/dia): <b>{over['threshold']}</b></p>
-                <p><b>{over['tilt_days']}</b> dias acima do threshold</p>
-                <p>Avg PnL em dias acima:
-                <span class="{color_class(over['tilt_avg_pnl'])}">{fmt_money(over['tilt_avg_pnl'])}</span>
-                · normais:
-                <span class="{color_class(over['normal_avg_pnl'])}">{fmt_money(over['normal_avg_pnl'])}</span></p>
+                <h4 style="color:{over_color}">{t('coach.over.title')}</h4>
+                <p>{t('coach.over.threshold', thr=over['threshold'])}</p>
+                <p>{t('coach.over.tilt_days', n=over['tilt_days'])}</p>
+                <p>{t('coach.over.compare',
+                    cls_t=color_class(over['tilt_avg_pnl']), tilt=fmt_money(over['tilt_avg_pnl']),
+                    cls_n=color_class(over['normal_avg_pnl']), norm=fmt_money(over['normal_avg_pnl']))}</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -883,17 +872,17 @@ def render_coach(
 
         streak_text = ""
         if streak["start"] is not None:
-            streak_text = (
-                f"<p>De {streak['start'].strftime('%d/%m %H:%M')} a "
-                f"{streak['end'].strftime('%d/%m %H:%M')}</p>"
+            streak_text = t(
+                "coach.streak.range",
+                start=streak['start'].strftime('%d/%m %H:%M'),
+                end=streak['end'].strftime('%d/%m %H:%M'),
             )
         st.markdown(
             f"""
             <div class="coach-card">
-                <h4 style="color:{RED}">Maior sequência de perdas</h4>
-                <p><b>{streak['length']}</b> losses consecutivos</p>
-                <p>PnL acumulado:
-                <span class="{color_class(streak['pnl'])}">{fmt_money(streak['pnl'])}</span></p>
+                <h4 style="color:{RED}">{t('coach.streak.title')}</h4>
+                <p>{t('coach.streak.length', n=streak['length'])}</p>
+                <p>{t('coach.streak.pnl', cls=color_class(streak['pnl']), pnl=fmt_money(streak['pnl']))}</p>
                 {streak_text}
             </div>
             """,
@@ -908,29 +897,32 @@ def render_coach(
     def render_combo_table(title: str, sub: pd.DataFrame, color: str) -> None:
         st.markdown(f"<h4 style='color:{color}'>{title}</h4>", unsafe_allow_html=True)
         if sub.empty:
-            st.caption("Sem combinações com volume suficiente.")
+            st.caption(t("coach.combo.empty"))
             return
+        col_pnl = t("coach.combo.col.pnl")
+        col_avg = t("coach.combo.col.avg_pnl")
+        col_wr = t("coach.combo.col.win_rate")
         show = sub.rename(
             columns={
-                "contract_name": "Contrato",
-                "weekday": "Dia",
-                "entry_hour": "Hora",
-                "trades": "# trades",
-                "pnl": "PnL",
-                "avg_pnl": "Avg PnL",
-                "win_rate": "Win rate",
+                "contract_name": t("coach.combo.col.contract"),
+                "weekday": t("coach.combo.col.weekday"),
+                "entry_hour": t("coach.combo.col.hour"),
+                "trades": t("coach.combo.col.trades"),
+                "pnl": col_pnl,
+                "avg_pnl": col_avg,
+                "win_rate": col_wr,
             }
         ).copy()
-        show["PnL"] = show["PnL"].map(fmt_money)
-        show["Avg PnL"] = show["Avg PnL"].map(fmt_money)
-        show["Win rate"] = show["Win rate"].map(lambda v: f"{v*100:.0f}%")
+        show[col_pnl] = show[col_pnl].map(fmt_money)
+        show[col_avg] = show[col_avg].map(fmt_money)
+        show[col_wr] = show[col_wr].map(lambda v: f"{v*100:.0f}%")
         st.dataframe(show, use_container_width=True, hide_index=True)
 
     with col_leak:
-        render_combo_table("Top vazamentos (contrato × dia × hora)", coach["leaks"], RED)
+        render_combo_table(t("coach.leaks.title"), coach["leaks"], RED)
 
     with col_str:
-        render_combo_table("Top pontos fortes (contrato × dia × hora)", coach["strengths"], GREEN)
+        render_combo_table(t("coach.strengths.title"), coach["strengths"], GREEN)
 
     st.divider()
 
@@ -938,17 +930,17 @@ def render_coach(
     col_sz, col_dist = st.columns(2)
 
     with col_sz:
-        st.subheader("PnL médio por tamanho de posição")
+        st.subheader(t("coach.size_title"))
         sz = coach["size_buckets"]
         if sz.empty:
-            st.caption("Sem dados de size.")
+            st.caption(t("coach.size_empty"))
         else:
             fig = go.Figure()
             fig.add_trace(
                 go.Bar(
                     x=sz["size"].astype(str), y=sz["avg_pnl"],
                     marker_color=[GREEN if v >= 0 else RED for v in sz["avg_pnl"]],
-                    text=[f"n={int(t)}" for t in sz["trades"]],
+                    text=[f"n={int(n)}" for n in sz["trades"]],
                     textposition="outside",
                     hovertemplate=(
                         "<b>Size %{x}</b><br>"
@@ -959,15 +951,15 @@ def render_coach(
             )
             fig.update_layout(
                 **PLOTLY_LAYOUT, height=320,
-                xaxis_title="Size", yaxis_title="Avg PnL ($)",
+                xaxis_title=t("coach.size_axis_x"), yaxis_title=t("coach.size_axis_y"),
             )
             st.plotly_chart(fig, use_container_width=True)
 
     with col_dist:
-        st.subheader("Distribuição de pontos por trade")
+        st.subheader(t("coach.dist_title"))
         dist = coach["points_distribution"]
         if not dist["values"]:
-            st.caption("Sem dados.")
+            st.caption(t("coach.dist_empty"))
         else:
             fig = go.Figure()
             fig.add_trace(
@@ -978,23 +970,23 @@ def render_coach(
                 )
             )
             fig.add_vline(x=dist["mean"], line_color=GREEN, line_dash="dash",
-                          annotation_text=f"média {dist['mean']:.2f}",
+                          annotation_text=t("coach.dist_mean", v=dist['mean']),
                           annotation_position="top right")
             fig.add_vline(x=dist["median"], line_color=RED, line_dash="dot",
-                          annotation_text=f"mediana {dist['median']:.2f}",
+                          annotation_text=t("coach.dist_median", v=dist['median']),
                           annotation_position="top left")
             fig.update_layout(
                 **PLOTLY_LAYOUT, height=320,
-                xaxis_title="Pontos", yaxis_title="Frequência",
+                xaxis_title=t("coach.dist_axis_x"), yaxis_title=t("coach.dist_axis_y"),
             )
             st.plotly_chart(fig, use_container_width=True)
 
     st.divider()
 
     # --- Checklist acionável -------------------------------------------------
-    st.subheader("Checklist acionável")
+    st.subheader(t("coach.checklist"))
     if not coach["checklist"]:
-        st.caption("Sem recomendações automáticas com os filtros atuais — parabéns ou amostra pequena.")
+        st.caption(t("coach.checklist_empty"))
     else:
         for item in coach["checklist"]:
             st.markdown(f"<div class='coach-check'>• {item}</div>", unsafe_allow_html=True)
@@ -1009,24 +1001,17 @@ def _load_action_items() -> pd.DataFrame:
 
 
 def render_action_plan() -> None:
-    st.subheader("Plano de Ação")
-    st.caption(
-        "To-do simples. Edite linhas inline, use o último símbolo (+) para adicionar, "
-        "marque a célula e pressione Delete para remover. Clique em **Salvar alterações** "
-        "para persistir no Supabase."
-    )
+    st.subheader(t("plan.title"))
+    st.caption(t("plan.caption"))
 
     try:
         original = _load_action_items()
     except Exception as e:
         msg = str(e)
         if "action_items" in msg or "does not exist" in msg.lower():
-            st.error(
-                "Tabela `public.action_items` não existe no Supabase. "
-                "Rode o bloco do `PRD/schema.sql` (seção 'Plano de Ação') no SQL Editor."
-            )
+            st.error(t("plan.err_table_missing"))
         else:
-            st.error(f"Falha ao carregar plano de ação: {msg}")
+            st.error(t("plan.err_load", msg=msg))
         return
 
     # KPIs ---------------------------------------------------------------
@@ -1037,39 +1022,50 @@ def render_action_plan() -> None:
     else:
         pend = anda = conc = 0
     k1, k2, k3 = st.columns(3)
-    k1.metric("Pendente", pend)
-    k2.metric("Em andamento", anda)
-    k3.metric("Concluído", conc)
+    k1.metric(t("plan.kpi.pending"), pend)
+    k2.metric(t("plan.kpi.in_progress"), anda)
+    k3.metric(t("plan.kpi.done"), conc)
 
     # Editor -------------------------------------------------------------
     # Snapshot original em session_state para o diff no save.
     st.session_state["_action_plan_original"] = original.copy()
 
+    # Mapeia canônico PT (banco) → label traduzido (UI). O original fica
+    # intacto para o diff/upsert; a cópia exibida usa labels traduzidos.
+    display = original.copy()
+    if not display.empty:
+        display["status"] = display["status"].map(
+            lambda v: i18n.status_label(v) if pd.notna(v) else v
+        )
+        display["priority"] = display["priority"].map(
+            lambda v: i18n.priority_label(v) if pd.notna(v) else v
+        )
+
     edited = st.data_editor(
-        original,
+        display,
         num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
         column_order=action_plan.EDITABLE_COLUMNS,
         column_config={
             "task": st.column_config.TextColumn(
-                "Tarefa", required=True, width="large",
+                t("plan.col.task"), required=True, width="large",
             ),
             "priority": st.column_config.SelectboxColumn(
-                "Prioridade",
-                options=list(action_plan.VALID_PRIORITY),
-                default="Média", required=True, width="small",
+                t("plan.col.priority"),
+                options=i18n.priority_options(),
+                default=i18n.priority_label("Média"), required=True, width="small",
             ),
             "status": st.column_config.SelectboxColumn(
-                "Status",
-                options=list(action_plan.VALID_STATUS),
-                default="Pendente", required=True, width="small",
+                t("plan.col.status"),
+                options=i18n.status_options(),
+                default=i18n.status_label("Pendente"), required=True, width="small",
             ),
             "due_date": st.column_config.DateColumn(
-                "Data estimada", format="DD/MM/YYYY", width="small",
+                t("plan.col.due_date"), format="DD/MM/YYYY", width="small",
             ),
             "done": st.column_config.CheckboxColumn(
-                "Concluir", default=False, width="small",
+                t("plan.col.done"), default=False, width="small",
             ),
             # Mantém id internamente para o diff, mas oculto via column_order.
             "id": None, "created_at": None, "updated_at": None,
@@ -1078,56 +1074,69 @@ def render_action_plan() -> None:
     )
 
     col_save, col_reload, _ = st.columns([1, 1, 4])
-    save_clicked = col_save.button("Salvar alterações", type="primary", use_container_width=True)
-    reload_clicked = col_reload.button("Recarregar", use_container_width=True)
+    save_clicked = col_save.button(t("plan.btn_save"), type="primary", use_container_width=True)
+    reload_clicked = col_reload.button(t("plan.btn_reload"), use_container_width=True)
 
     if reload_clicked:
         _load_action_items.clear()
         st.rerun()
 
     if save_clicked:
-        with st.spinner("Salvando…"):
-            result = action_plan.upsert_items(original, edited)
+        # Converte labels traduzidos de volta para os valores canônicos do
+        # banco antes do diff/upsert. action_plan._normalize_row é tolerante
+        # a valores fora do conjunto, então essa conversão é o que mantém o
+        # CHECK constraint feliz.
+        edited_for_save = edited.copy()
+        if not edited_for_save.empty:
+            edited_for_save["status"] = edited_for_save["status"].map(
+                lambda v: i18n.status_from_label(v) if isinstance(v, str) else v
+            )
+            edited_for_save["priority"] = edited_for_save["priority"].map(
+                lambda v: i18n.priority_from_label(v) if isinstance(v, str) else v
+            )
+        with st.spinner(t("plan.saving")):
+            result = action_plan.upsert_items(original, edited_for_save)
         if result["ok"]:
             st.success(
-                f"Salvo: {result['inserted']} novas, {result['updated']} atualizadas, "
-                f"{result['deleted']} removidas."
+                t("plan.save_ok",
+                  ins=result['inserted'], upd=result['updated'], dele=result['deleted'])
             )
             _load_action_items.clear()
             st.rerun()
         else:
-            st.error(f"Falha ao salvar: {result['error']}")
+            st.error(t("plan.save_err", err=result['error']))
 
 
 # ----------------------------- Importar CSVs --------------------------------
 
 
 def render_import(user_id: str) -> None:
-    st.subheader("Importar CSVs")
-    st.caption(
-        "Selecione um ou mais CSVs exportados do TopStepX (ou do TopStep "
-        "Dashboard legacy). O upload acontece sob sua conta — outros usuários "
-        "não veem seus dados."
-    )
+    st.subheader(t("import.subheader"))
+    st.caption(t("import.caption"))
     files = st.file_uploader(
-        "Arquivos CSV",
+        t("import.uploader"),
         type="csv",
         accept_multiple_files=True,
         key="csv_uploader",
     )
     col_btn, _ = st.columns([1, 3])
-    if files and col_btn.button("Importar", type="primary", use_container_width=True):
+    if files and col_btn.button(t("import.btn"), type="primary", use_container_width=True):
         client = auth.get_client()
         total = 0
         rows_log: list[dict] = []
-        with st.spinner(f"Processando {len(files)} arquivo(s)…"):
+        with st.spinner(t("import.processing", n=len(files))):
             for f in files:
                 n, fmt, err = ingest_core.ingest_uploaded_csv(f, client, user_id)
                 total += n
                 rows_log.append(
-                    {"Arquivo": f.name, "Formato": fmt, "Linhas": n, "Status": err or "ok"}
+                    {
+                        t("import.col.file"): f.name,
+                        t("import.col.format"): fmt,
+                        t("import.col.rows"): n,
+                        t("import.col.status"): err or "ok",
+                    }
                 )
-        st.success(f"Importação concluída: {total} trades upsertados.")
+        st.success(t("import.done", n=total))
         st.dataframe(pd.DataFrame(rows_log), use_container_width=True, hide_index=True)
         # Invalida o cache para o próximo load_trades pegar os novos trades.
         load_trades.clear()
@@ -1135,70 +1144,62 @@ def render_import(user_id: str) -> None:
 
 # ----------------------------- App -------------------------------------------
 
-# Sidebar superior: identidade do usuário + sair (renderizado antes dos filtros
-# para ficar no topo da barra lateral).
+# Sidebar superior: seletor de idioma + identidade do usuário + sair.
+# O language_selector é renderizado ANTES dos demais widgets para que uma
+# troca de idioma já reaplique em todo o resto do mesmo rerun.
 with st.sidebar:
+    i18n.language_selector()
     st.markdown(f"👤 **{_user.get('email') or _user['id']}**")
-    if st.button("Sair", use_container_width=True, key="btn_sign_out"):
+    if st.button(t("auth.sign_out"), use_container_width=True, key="btn_sign_out"):
         auth.sign_out()
     st.divider()
 
 df_all = load_trades(_user["id"])
 
-st.title("BI TopStep")
-st.caption(f"Dashboard de trades — logado como **{_user.get('email') or _user['id']}**.")
+st.title(t("app.title"))
+st.caption(t("app.caption_logged", email=_user.get('email') or _user['id']))
 
 # Sem trades ainda: pula filtros e mostra só a aba de upload.
 if df_all.empty:
-    st.warning(
-        "Nenhum trade no seu perfil ainda. Suba os CSVs exportados do TopStepX "
-        "abaixo para popular o dashboard."
-    )
+    st.warning(t("app.empty_no_trades"))
     render_import(_user["id"])
     st.stop()
 
 # --- Sidebar: filtros (cross-filter) -----------------------------------------
 
 with st.sidebar:
-    st.header("Filtros")
+    st.header(t("sidebar.filters"))
 
     min_d, max_d = df_all["trade_day"].min(), df_all["trade_day"].max()
 
-    # Atalhos de período — calculados a partir de hoje (BRT), com clamp em min/max.
+    # Atalhos de período — keys internas estáveis (independem do idioma);
+    # exibição via format_func.
     today_brt = pd.Timestamp.now(tz="America/Sao_Paulo").date()
-    shortcut_options = [
-        "Personalizado",
-        "Hoje",
-        "Últimos 7 dias",
-        "Semana atual",
-        "Últimos 30 dias",
-        "Mês atual",
-        "Tudo",
-    ]
     shortcut = st.radio(
-        "Atalhos de período",
-        options=shortcut_options,
+        t("sidebar.period_shortcuts"),
+        options=i18n.SHORTCUT_KEYS,
         index=0,
         horizontal=False,
         key="date_shortcut",
+        format_func=i18n.shortcut_label,
     )
 
     def _clamp(d: date) -> date:
         return max(min_d, min(max_d, d))
 
     preset_range: tuple[date, date] | None = None
-    if shortcut == "Hoje":
+    if shortcut == "today":
         preset_range = (_clamp(today_brt), _clamp(today_brt))
-    elif shortcut == "Últimos 7 dias":
+    elif shortcut == "last_7":
         preset_range = (_clamp(today_brt - timedelta(days=6)), _clamp(today_brt))
-    elif shortcut == "Semana atual":
+    elif shortcut == "current_week":
         # Semana = segunda a domingo da semana corrente.
         monday = today_brt - timedelta(days=today_brt.weekday())
         sunday = monday + timedelta(days=6)
         preset_range = (_clamp(monday), _clamp(sunday))
-    elif shortcut == "Últimos 30 dias":
+    elif shortcut == "last_30":
         preset_range = (_clamp(today_brt - timedelta(days=29)), _clamp(today_brt))
-    elif shortcut == "Mês atual":
+    elif shortcut == "current_month":
         first = today_brt.replace(day=1)
         # Último dia do mês = primeiro do próximo mês - 1.
         if first.month == 12:
@@ -1207,13 +1208,13 @@ with st.sidebar:
             next_first = first.replace(month=first.month + 1)
         last = next_first - timedelta(days=1)
         preset_range = (_clamp(first), _clamp(last))
-    elif shortcut == "Tudo":
+    elif shortcut == "all":
         preset_range = (min_d, max_d)
 
     default_range = preset_range if preset_range is not None else (min_d, max_d)
     # `key` muda junto com o atalho para forçar o date_input a reler o `value`.
     date_range = st.date_input(
-        "Período (trade day)",
+        t("sidebar.period_label"),
         value=default_range,
         min_value=min_d,
         max_value=max_d,
@@ -1225,15 +1226,19 @@ with st.sidebar:
         start_d = end_d = date_range if isinstance(date_range, date) else min_d
 
     contracts = sorted(df_all["contract_name"].unique())
-    sel_contracts = st.multiselect("Contrato", contracts, default=contracts)
+    sel_contracts = st.multiselect(t("sidebar.contract"), contracts, default=contracts)
 
     types = sorted(df_all["type"].unique())
-    sel_types = st.multiselect("Tipo (Long/Short)", types, default=types)
+    sel_types = st.multiselect(t("sidebar.type"), types, default=types)
 
-    weekdays_order = [
-        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
-    ]
-    sel_weekdays = st.multiselect("Dia da semana", weekdays_order, default=weekdays_order)
+    # weekdays mantém os nomes em inglês (o que vem do pandas) como valores
+    # canônicos; exibe traduzido via format_func.
+    sel_weekdays = st.multiselect(
+        t("sidebar.weekday"),
+        i18n.WEEKDAY_PANDAS,
+        default=i18n.WEEKDAY_PANDAS,
+        format_func=i18n.weekday_label,
+    )
 
     # Dias específicos.
     # Estado canônico em st.session_state["selected_days"] — escrito por
@@ -1256,16 +1261,15 @@ with st.sidebar:
         )
 
     sel_days = st.multiselect(
-        "Dias específicos (clique nos gráficos ou escolha aqui)",
+        t("sidebar.days_specific"),
         options=available_days,
         default=canonical,
         format_func=lambda d: d.strftime("%d/%m/%Y") if hasattr(d, "strftime") else str(d),
         key="selected_days_widget",
         on_change=_sync_selected_days,
-        help="Vazio = todos os dias do período. Use os gráficos 'Pontos diários' "
-             "ou 'Calendário de PnL' para selecionar via clique/box.",
+        help=t("sidebar.days_help"),
     )
-    if sel_days and st.button("Limpar seleção de dias", use_container_width=True):
+    if sel_days and st.button(t("sidebar.clear_days"), use_container_width=True):
         st.session_state["selected_days"] = []
         # Remover a key do widget força o multiselect a reler o `default` no
         # próximo run (caso contrário ele preserva o valor anterior).
@@ -1273,14 +1277,15 @@ with st.sidebar:
         st.rerun()
 
     result_filter = st.radio(
-        "Resultado",
-        options=["Todos", "Só ganhadores", "Só perdedores"],
+        t("sidebar.result"),
+        options=i18n.RESULT_KEYS,
         index=0,
         horizontal=False,
+        format_func=i18n.result_label,
     )
 
     st.divider()
-    if st.button("Recarregar dados do Supabase"):
+    if st.button(t("sidebar.reload")):
         st.cache_data.clear()
         st.rerun()
 
@@ -1296,13 +1301,13 @@ df = df_all[
 selected_days = st.session_state.get("selected_days", [])
 if selected_days:
     df = df[df["trade_day"].isin(selected_days)]
-if result_filter == "Só ganhadores":
+if result_filter == "winners":
     df = df[df["pnl_net"] > 0]
-elif result_filter == "Só perdedores":
+elif result_filter == "losers":
     df = df[df["pnl_net"] <= 0]
 
 if df.empty:
-    st.warning("Nenhum trade encontrado com os filtros atuais.")
+    st.warning(t("app.empty_filtered"))
     st.stop()
 
 # --- Derivações: grupos, KPIs em pts, segmentos, daily -----------------------
@@ -1316,7 +1321,7 @@ overview = metrics.compute_overview(df_with_groups)
 # --- Abas --------------------------------------------------------------------
 
 tab_dash, tab_coach, tab_plan, tab_import = st.tabs(
-    ["Dashboard", "Coach", "Plano de Ação", "Importar CSVs"]
+    [t("tab.dashboard"), t("tab.coach"), t("tab.plan"), t("tab.import")]
 )
 
 with tab_dash:
