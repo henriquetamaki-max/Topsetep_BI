@@ -281,5 +281,8 @@
   "trial.banner.active": "🎁 Trial gratuito activo — {days} día(s) restante(s). Suscríbete cuando quieras en la pestaña Cuenta.",
   "trial.banner.ending_soon": "Tu trial termina en {days} día(s). Suscríbete en la pestaña Cuenta para mantener el acceso completo.",
   "trial.banner.expired": "Tu trial gratuito ha terminado. El dashboard ahora muestra solo los últimos 30 días y la importación de CSVs está bloqueada. Suscríbete en la pestaña Cuenta para restaurar el acceso completo.",
-  "billing.past_due": "Tu último pago falló. Actualiza tu tarjeta en la pestaña Cuenta para mantener la suscripción activa."
+  "billing.past_due": "Tu último pago falló. Actualiza tu tarjeta en la pestaña Cuenta para mantener la suscripción activa.",
+
+  "paywall.import.blocked": "La importación de CSVs no está disponible en tu plan actual.",
+  "paywall.import.cta": "Suscríbete a Basic o Pro en la pestaña Cuenta para subir nuevos trades. Tus datos existentes están preservados."
 }

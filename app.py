@@ -1120,6 +1120,14 @@ def render_import(user_id: str) -> None:
     st.subheader(t("import.subheader"))
     st.caption(t("import.caption"))
 
+    # Gating por plano: usuários no plano free (trial expirado sem assinar)
+    # não conseguem importar. Mostra paywall e retorna antes de renderizar
+    # o uploader, para evitar a impressão de que o upload está disponível.
+    if not billing.has_feature(_plan, "import"):
+        st.warning(t("paywall.import.blocked"), icon="🔒")
+        st.caption(t("paywall.import.cta"))
+        return
+
     # A key do uploader rotaciona via contador para "esvaziar" a caixa após
     # uma importação. O Streamlit não permite escrever em
     # st.session_state["csv_uploader"] depois do widget instanciado, então o
