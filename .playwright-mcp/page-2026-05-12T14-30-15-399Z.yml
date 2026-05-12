@@ -1,0 +1,166 @@
+- generic:
+  - generic [ref=e2]:
+    - generic [ref=e7]:
+      - heading "Filtros" [level=2] [ref=e11]
+      - generic [ref=e13]:
+        - paragraph [ref=e17]: Atalhos de período
+        - radiogroup "Atalhos de período" [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]:
+            - radio "Personalizado" [checked]
+            - paragraph [ref=e24]: Personalizado
+          - generic [ref=e25]:
+            - radio "Hoje"
+            - paragraph [ref=e30]: Hoje
+          - generic [ref=e31]:
+            - radio "Últimos 7 dias"
+            - paragraph [ref=e36]: Últimos 7 dias
+          - generic [ref=e37]:
+            - radio "Semana atual"
+            - paragraph [ref=e42]: Semana atual
+          - generic [ref=e43]:
+            - radio "Últimos 30 dias"
+            - paragraph [ref=e48]: Últimos 30 dias
+          - generic [ref=e49]:
+            - radio "Mês atual"
+            - paragraph [ref=e54]: Mês atual
+          - generic [ref=e55]:
+            - radio "Tudo"
+            - paragraph [ref=e60]: Tudo
+      - generic [ref=e62]:
+        - paragraph [ref=e66]: Período (trade day)
+        - textbox "Select a date range." [ref=e70]:
+          - /placeholder: YYYY/MM/DD – YYYY/MM/DD
+          - text: 2026/03/16 – 2026/05/12
+        - paragraph: Press the down arrow key to interact with the calendar and select a date. Press the escape button to close the calendar.
+        - paragraph: Selected date range is from 2026/03/16 to 2026/05/12.
+      - generic [ref=e72]:
+        - paragraph [ref=e76]: Contrato
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - button "MNQH6, close by backspace":
+              - generic "MNQH6"
+              - img [ref=e82] [cursor=pointer]
+            - button "MNQM6, close by backspace":
+              - generic "MNQM6"
+              - img [ref=e85] [cursor=pointer]
+            - combobox "Selected MNQH6, MNQM6. Contrato" [ref=e88]
+          - generic [ref=e89]:
+            - button "Clear all" [ref=e90] [cursor=pointer]
+            - img "open" [ref=e92] [cursor=pointer]
+      - generic [ref=e95]:
+        - paragraph [ref=e99]: Tipo (Long/Short)
+        - generic [ref=e102]:
+          - generic [ref=e103]:
+            - button "Long, close by backspace":
+              - generic "Long"
+              - img [ref=e105] [cursor=pointer]
+            - button "Short, close by backspace":
+              - generic "Short"
+              - img [ref=e108] [cursor=pointer]
+            - combobox "Selected Long, Short. Tipo (Long/Short)" [ref=e111]
+          - generic [ref=e112]:
+            - button "Clear all" [ref=e113] [cursor=pointer]
+            - img "open" [ref=e115] [cursor=pointer]
+      - generic [ref=e118]:
+        - paragraph [ref=e122]: Dia da semana
+        - generic [ref=e125]:
+          - generic [ref=e126]:
+            - button "Monday, close by backspace":
+              - generic "Monday"
+              - img [ref=e128] [cursor=pointer]
+            - button "Tuesday, close by backspace":
+              - generic "Tuesday"
+              - img [ref=e131] [cursor=pointer]
+            - button "Wednesday, close by backspace":
+              - generic "Wednesday"
+              - img [ref=e134] [cursor=pointer]
+            - button "Thursday, close by backspace":
+              - generic "Thursday"
+              - img [ref=e137] [cursor=pointer]
+            - button "Friday, close by backspace":
+              - generic "Friday"
+              - img [ref=e140] [cursor=pointer]
+            - button "Saturday, close by backspace":
+              - generic "Saturday"
+              - img [ref=e143] [cursor=pointer]
+            - button "Sunday, close by backspace":
+              - generic "Sunday"
+              - img [ref=e146] [cursor=pointer]
+            - combobox "Selected Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday. Dia da semana" [ref=e149]
+          - generic [ref=e150]:
+            - button "Clear all" [ref=e151] [cursor=pointer]
+            - img "open" [ref=e153] [cursor=pointer]
+      - generic [ref=e156]:
+        - generic [ref=e157]:
+          - paragraph [ref=e160]: Dias específicos (clique nos gráficos ou escolha aqui)
+          - button "Help for Dias específicos (clique nos gráficos ou escolha aqui)" [ref=e164] [cursor=pointer]:
+            - img [ref=e165]
+        - generic [ref=e170]:
+          - generic [ref=e171]:
+            - combobox "Dias específicos (clique nos gráficos ou escolha aqui)" [ref=e173]
+            - generic: Choose options
+          - img "open" [ref=e175] [cursor=pointer]
+      - generic [ref=e178]:
+        - paragraph [ref=e182]: Resultado
+        - radiogroup "Resultado" [ref=e183] [cursor=pointer]:
+          - generic [ref=e184]:
+            - radio "Todos" [checked]
+            - paragraph [ref=e189]: Todos
+          - generic [ref=e190]:
+            - radio "Só ganhadores"
+            - paragraph [ref=e195]: Só ganhadores
+          - generic [ref=e196]:
+            - radio "Só perdedores"
+            - paragraph [ref=e201]: Só perdedores
+      - separator [ref=e206]
+      - button "Recarregar dados do Supabase" [ref=e209] [cursor=pointer]:
+        - generic:
+          - generic:
+            - generic:
+              - paragraph: Recarregar dados do Supabase
+    - generic [ref=e3]:
+      - banner [ref=e212]:
+        - generic [ref=e214]:
+          - button "keyboard_double_arrow_right" [ref=e217] [cursor=pointer]:
+            - generic [ref=e219]: keyboard_double_arrow_right
+          - generic [ref=e220]:
+            - button "Deploy" [ref=e222] [cursor=pointer]:
+              - generic [ref=e224]: Deploy
+            - button "Main menu" [ref=e226] [cursor=pointer]:
+              - img [ref=e227]
+      - generic [ref=e230]:
+        - heading "BI TopStep" [level=1] [ref=e235]:
+          - text: BI TopStep
+          - generic [ref=e236]:
+            - link "Link to heading":
+              - /url: "#bi-top-step"
+              - img
+        - paragraph [ref=e241]: Dashboard de trades — filtros aplicam em todos os gráficos.
+        - generic [ref=e243]:
+          - tablist [ref=e245]:
+            - tab "Dashboard" [ref=e246] [cursor=pointer]:
+              - paragraph [ref=e248]: Dashboard
+            - tab "Coach" [ref=e249] [cursor=pointer]:
+              - paragraph [ref=e251]: Coach
+            - tab "Plano de Ação" [active] [selected] [ref=e252] [cursor=pointer]:
+              - paragraph [ref=e254]: Plano de Ação
+          - tabpanel "Plano de Ação" [ref=e1378]:
+            - generic [ref=e1379]:
+              - heading "Plano de Ação" [level=3] [ref=e1384]:
+                - text: Plano de Ação
+                - generic [ref=e1385]:
+                  - link "Link to heading":
+                    - /url: "#plano-de-acao"
+                    - img
+              - paragraph [ref=e1390]:
+                - text: To-do simples. Edite linhas inline, use o último símbolo (+) para adicionar, marque a célula e pressione Delete para remover. Clique em
+                - strong [ref=e1391]: Salvar alterações
+                - text: para persistir no Supabase.
+              - alert [ref=e1394]:
+                - paragraph [ref=e1399]:
+                  - text: Tabela
+                  - code [ref=e1400]: public.action_items
+                  - text: não existe no Supabase. Rode o bloco do
+                  - code [ref=e1401]: PRD/schema.sql
+                  - text: (seção 'Plano de Ação') no SQL Editor.
+  - img [ref=e1376]

@@ -1,0 +1,1179 @@
+- generic [active]:
+  - generic [ref=e2]:
+    - generic [ref=e7]:
+      - heading "Filtros" [level=2] [ref=e11]
+      - generic [ref=e13]:
+        - paragraph [ref=e17]: Atalhos de período
+        - radiogroup "Atalhos de período" [ref=e18] [cursor=pointer]:
+          - generic [ref=e19]:
+            - radio "Personalizado" [checked]
+            - paragraph [ref=e24]: Personalizado
+          - generic [ref=e25]:
+            - radio "Hoje"
+            - paragraph [ref=e30]: Hoje
+          - generic [ref=e31]:
+            - radio "Últimos 7 dias"
+            - paragraph [ref=e36]: Últimos 7 dias
+          - generic [ref=e37]:
+            - radio "Semana atual"
+            - paragraph [ref=e42]: Semana atual
+          - generic [ref=e43]:
+            - radio "Últimos 30 dias"
+            - paragraph [ref=e48]: Últimos 30 dias
+          - generic [ref=e49]:
+            - radio "Mês atual"
+            - paragraph [ref=e54]: Mês atual
+          - generic [ref=e55]:
+            - radio "Tudo"
+            - paragraph [ref=e60]: Tudo
+      - generic [ref=e62]:
+        - paragraph [ref=e66]: Período (trade day)
+        - textbox "Select a date range." [ref=e70]:
+          - /placeholder: YYYY/MM/DD – YYYY/MM/DD
+          - text: 2026/03/16 – 2026/05/12
+        - paragraph: Press the down arrow key to interact with the calendar and select a date. Press the escape button to close the calendar.
+        - paragraph: Selected date range is from 2026/03/16 to 2026/05/12.
+      - generic [ref=e72]:
+        - paragraph [ref=e76]: Contrato
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - button "MNQH6, close by backspace":
+              - generic "MNQH6"
+              - img [ref=e82] [cursor=pointer]
+            - button "MNQM6, close by backspace":
+              - generic "MNQM6"
+              - img [ref=e85] [cursor=pointer]
+            - combobox "Selected MNQH6, MNQM6. Contrato" [ref=e88]
+          - generic [ref=e89]:
+            - button "Clear all" [ref=e90] [cursor=pointer]
+            - img "open" [ref=e92] [cursor=pointer]
+      - generic [ref=e95]:
+        - paragraph [ref=e99]: Tipo (Long/Short)
+        - generic [ref=e102]:
+          - generic [ref=e103]:
+            - button "Long, close by backspace":
+              - generic "Long"
+              - img [ref=e105] [cursor=pointer]
+            - button "Short, close by backspace":
+              - generic "Short"
+              - img [ref=e108] [cursor=pointer]
+            - combobox "Selected Long, Short. Tipo (Long/Short)" [ref=e111]
+          - generic [ref=e112]:
+            - button "Clear all" [ref=e113] [cursor=pointer]
+            - img "open" [ref=e115] [cursor=pointer]
+      - generic [ref=e118]:
+        - paragraph [ref=e122]: Dia da semana
+        - generic [ref=e125]:
+          - generic [ref=e126]:
+            - button "Monday, close by backspace":
+              - generic "Monday"
+              - img [ref=e128] [cursor=pointer]
+            - button "Tuesday, close by backspace":
+              - generic "Tuesday"
+              - img [ref=e131] [cursor=pointer]
+            - button "Wednesday, close by backspace":
+              - generic "Wednesday"
+              - img [ref=e134] [cursor=pointer]
+            - button "Thursday, close by backspace":
+              - generic "Thursday"
+              - img [ref=e137] [cursor=pointer]
+            - button "Friday, close by backspace":
+              - generic "Friday"
+              - img [ref=e140] [cursor=pointer]
+            - button "Saturday, close by backspace":
+              - generic "Saturday"
+              - img [ref=e143] [cursor=pointer]
+            - button "Sunday, close by backspace":
+              - generic "Sunday"
+              - img [ref=e146] [cursor=pointer]
+            - combobox "Selected Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday. Dia da semana" [ref=e149]
+          - generic [ref=e150]:
+            - button "Clear all" [ref=e151] [cursor=pointer]
+            - img "open" [ref=e153] [cursor=pointer]
+      - generic [ref=e156]:
+        - generic [ref=e157]:
+          - paragraph [ref=e160]: Dias específicos (clique nos gráficos ou escolha aqui)
+          - button "Help for Dias específicos (clique nos gráficos ou escolha aqui)" [ref=e164] [cursor=pointer]:
+            - img [ref=e165]
+        - generic [ref=e170]:
+          - generic [ref=e171]:
+            - combobox "Dias específicos (clique nos gráficos ou escolha aqui)" [ref=e173]
+            - generic: Choose options
+          - img "open" [ref=e175] [cursor=pointer]
+      - generic [ref=e178]:
+        - paragraph [ref=e182]: Resultado
+        - radiogroup "Resultado" [ref=e183] [cursor=pointer]:
+          - generic [ref=e184]:
+            - radio "Todos" [checked]
+            - paragraph [ref=e189]: Todos
+          - generic [ref=e190]:
+            - radio "Só ganhadores"
+            - paragraph [ref=e195]: Só ganhadores
+          - generic [ref=e196]:
+            - radio "Só perdedores"
+            - paragraph [ref=e201]: Só perdedores
+      - separator [ref=e206]
+      - button "Recarregar dados do Supabase" [ref=e209] [cursor=pointer]:
+        - generic:
+          - generic:
+            - generic:
+              - paragraph: Recarregar dados do Supabase
+    - generic [ref=e3]:
+      - banner [ref=e212]:
+        - generic [ref=e214]:
+          - button "keyboard_double_arrow_right" [ref=e217] [cursor=pointer]:
+            - generic [ref=e219]: keyboard_double_arrow_right
+          - generic [ref=e220]:
+            - button "Deploy" [ref=e222] [cursor=pointer]:
+              - generic [ref=e224]: Deploy
+            - button "Main menu" [ref=e226] [cursor=pointer]:
+              - img [ref=e227]
+      - generic [ref=e230]:
+        - heading "BI TopStep" [level=1] [ref=e235]:
+          - text: BI TopStep
+          - generic [ref=e236]:
+            - link "Link to heading":
+              - /url: "#bi-top-step"
+              - img
+        - paragraph [ref=e241]: Dashboard de trades — filtros aplicam em todos os gráficos.
+        - generic [ref=e243]:
+          - tablist [ref=e245]:
+            - tab "Dashboard" [selected] [ref=e246] [cursor=pointer]:
+              - paragraph [ref=e248]: Dashboard
+            - tab "Coach" [ref=e249] [cursor=pointer]:
+              - paragraph [ref=e251]: Coach
+            - tab "Plano de Ação" [ref=e252] [cursor=pointer]:
+              - paragraph [ref=e254]: Plano de Ação
+          - tabpanel "Dashboard" [ref=e257]:
+            - generic [ref=e258]:
+              - heading "KPIs em $" [level=3] [ref=e263]:
+                - text: KPIs em $
+                - generic [ref=e264]:
+                  - link "Link to heading":
+                    - /url: "#kpis-em"
+                    - img
+              - generic [ref=e266]:
+                - generic [ref=e271]:
+                  - paragraph [ref=e274]: Total PnL líquido
+                  - paragraph [ref=e277]: "-$ 38,928.94"
+                - generic [ref=e282]:
+                  - paragraph [ref=e285]: Trade Win %
+                  - paragraph [ref=e288]: 29.3%
+                - generic [ref=e293]:
+                  - paragraph [ref=e296]: Avg Win / Avg Loss
+                  - paragraph [ref=e299]:
+                    - code [ref=e300]: 174.95 / -
+                    - text: "139.40"
+                - generic [ref=e305]:
+                  - paragraph [ref=e308]: Day Win %
+                  - paragraph [ref=e311]: 37.5%
+                  - generic [ref=e313]:
+                    - img [ref=e314]
+                    - paragraph [ref=e318]: 9/24 dias
+                - generic [ref=e323]:
+                  - paragraph [ref=e326]: Profit Factor
+                  - paragraph [ref=e329]: "0.52"
+                - generic [ref=e334]:
+                  - paragraph [ref=e337]: Best Day % of Total Profit
+                  - paragraph [ref=e340]: 0.0%
+              - generic [ref=e342]:
+                - generic [ref=e347]:
+                  - paragraph [ref=e350]: Trades
+                  - paragraph [ref=e353]: "825"
+                - generic [ref=e358]:
+                  - paragraph [ref=e361]: Total Lots Traded
+                  - paragraph [ref=e364]: 10,181
+                - generic [ref=e369]:
+                  - paragraph [ref=e372]: Avg Trade Duration
+                  - paragraph [ref=e375]: 33s
+                - generic [ref=e380]:
+                  - paragraph [ref=e383]: Avg Win Duration
+                  - paragraph [ref=e386]: 51s
+                - generic [ref=e391]:
+                  - paragraph [ref=e394]: Melhor dia
+                  - paragraph [ref=e397]: $ 3,101.00
+                  - generic [ref=e399]:
+                    - img [ref=e400]
+                    - paragraph [ref=e404]: 2026-05-11
+                - generic [ref=e409]:
+                  - paragraph [ref=e412]: Pior dia
+                  - paragraph [ref=e415]: "-$ 6,409.00"
+                  - generic [ref=e417]:
+                    - img [ref=e418]
+                    - paragraph [ref=e422]: 2026-05-01
+              - generic [ref=e424]:
+                - generic [ref=e431]:
+                  - heading "Best Trade" [level=4] [ref=e433]:
+                    - text: Best Trade
+                    - generic [ref=e434]:
+                      - link "Link to heading":
+                        - /url: "#best-trade"
+                        - img
+                  - generic [ref=e435]:
+                    - generic [ref=e436]: PnL líquido
+                    - generic [ref=e437]: $ 2,138.00
+                  - generic [ref=e438]:
+                    - generic [ref=e439]: Contrato
+                    - generic [ref=e440]: MNQM6 · Long
+                  - generic [ref=e441]:
+                    - generic [ref=e442]: Qtd
+                    - generic [ref=e443]: "50"
+                  - generic [ref=e444]:
+                    - generic [ref=e445]: Entrada @
+                    - generic [ref=e446]: 29,100.00
+                  - generic [ref=e447]:
+                    - generic [ref=e448]: Saída @
+                    - generic [ref=e449]: 29,122.00
+                  - generic [ref=e450]:
+                    - generic [ref=e451]: Data
+                    - generic [ref=e452]: 12/05 11:04
+                - generic [ref=e459]:
+                  - heading "Worst Trade" [level=4] [ref=e461]:
+                    - text: Worst Trade
+                    - generic [ref=e462]:
+                      - link "Link to heading":
+                        - /url: "#worst-trade"
+                        - img
+                  - generic [ref=e463]:
+                    - generic [ref=e464]: PnL líquido
+                    - generic [ref=e465]: "-$ 1,662.00"
+                  - generic [ref=e466]:
+                    - generic [ref=e467]: Contrato
+                    - generic [ref=e468]: MNQM6 · Short
+                  - generic [ref=e469]:
+                    - generic [ref=e470]: Qtd
+                    - generic [ref=e471]: "50"
+                  - generic [ref=e472]:
+                    - generic [ref=e473]: Entrada @
+                    - generic [ref=e474]: 27,036.00
+                  - generic [ref=e475]:
+                    - generic [ref=e476]: Saída @
+                    - generic [ref=e477]: 27,052.00
+                  - generic [ref=e478]:
+                    - generic [ref=e479]: Data
+                    - generic [ref=e480]: 28/04 11:50
+                - generic [ref=e488]:
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic: Long69.9%
+                        - generic:
+                          - generic:
+                            - generic: Short30.1%
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Trade Direction %
+                  - toolbar [ref=e491]:
+                    - button "Download plot as a PNG" [ref=e493] [cursor=pointer]:
+                      - img [ref=e494]
+                    - button "Fullscreen" [ref=e497] [cursor=pointer]:
+                      - img [ref=e498]
+                  - img
+              - heading "KPIs em pontos" [level=3] [ref=e504]:
+                - text: KPIs em pontos
+                - generic [ref=e505]:
+                  - link "Link to heading":
+                    - /url: "#kpis-em-pontos"
+                    - img
+              - generic [ref=e507]:
+                - generic [ref=e512]:
+                  - paragraph [ref=e515]: Net Points
+                  - paragraph [ref=e518]: "-1,089.25 pts"
+                - generic [ref=e523]:
+                  - paragraph [ref=e526]: Avg Win Pts
+                  - paragraph [ref=e529]: "8.00"
+                - generic [ref=e534]:
+                  - paragraph [ref=e537]: Avg Loss Pts
+                  - paragraph [ref=e540]: "6.81"
+                - generic [ref=e545]:
+                  - paragraph [ref=e548]: R/R Average
+                  - paragraph [ref=e551]: "1.18"
+                - generic [ref=e556]:
+                  - paragraph [ref=e559]: R/R Aggregate
+                  - paragraph [ref=e562]: "0.68"
+                - generic [ref=e567]:
+                  - paragraph [ref=e570]: Operações (grupos)
+                  - paragraph [ref=e573]: "273"
+                  - generic [ref=e575]:
+                    - img [ref=e576]
+                    - paragraph [ref=e580]: "Win Rate: 26.0%"
+              - separator [ref=e585]
+              - heading "Equity curve" [level=3] [ref=e590]:
+                - text: Equity curve
+                - generic [ref=e591]:
+                  - link "Link to heading":
+                    - /url: "#equity-curve"
+                    - img
+              - generic [ref=e593]:
+                - generic [ref=e601]:
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic: Mar 222026
+                          - generic:
+                            - generic: Apr 5
+                          - generic:
+                            - generic: Apr 19
+                          - generic:
+                            - generic: May 3
+                        - generic:
+                          - generic:
+                            - generic: −40k
+                          - generic:
+                            - generic: −30k
+                          - generic:
+                            - generic: −20k
+                          - generic:
+                            - generic: −10k
+                          - generic:
+                            - generic: "0"
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: PnL líquido acumulado ($)
+                  - toolbar [ref=e615]:
+                    - button "Download plot as a PNG" [ref=e617] [cursor=pointer]:
+                      - img [ref=e618]
+                    - generic [ref=e620]:
+                      - button "Zoom" [ref=e621] [cursor=pointer]:
+                        - img [ref=e622]
+                      - button "Pan" [ref=e624] [cursor=pointer]:
+                        - img [ref=e625]
+                    - generic [ref=e627]:
+                      - button "Zoom in" [ref=e628] [cursor=pointer]:
+                        - img [ref=e629]
+                      - button "Zoom out" [ref=e631] [cursor=pointer]:
+                        - img [ref=e632]
+                      - button "Autoscale" [ref=e634] [cursor=pointer]:
+                        - img [ref=e635]
+                      - button "Reset axes" [ref=e637] [cursor=pointer]:
+                        - img [ref=e638]
+                    - button "Fullscreen" [ref=e641] [cursor=pointer]:
+                      - img [ref=e642]
+                  - img
+                - generic [ref=e651]:
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic: Mar 222026
+                          - generic:
+                            - generic: Apr 5
+                          - generic:
+                            - generic: Apr 19
+                          - generic:
+                            - generic: May 3
+                        - generic:
+                          - generic:
+                            - generic: −1000
+                          - generic:
+                            - generic: −500
+                          - generic:
+                            - generic: "0"
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Pontos acumulados
+                  - toolbar [ref=e665]:
+                    - button "Download plot as a PNG" [ref=e667] [cursor=pointer]:
+                      - img [ref=e668]
+                    - generic [ref=e670]:
+                      - button "Zoom" [ref=e671] [cursor=pointer]:
+                        - img [ref=e672]
+                      - button "Pan" [ref=e674] [cursor=pointer]:
+                        - img [ref=e675]
+                    - generic [ref=e677]:
+                      - button "Zoom in" [ref=e678] [cursor=pointer]:
+                        - img [ref=e679]
+                      - button "Zoom out" [ref=e681] [cursor=pointer]:
+                        - img [ref=e682]
+                      - button "Autoscale" [ref=e684] [cursor=pointer]:
+                        - img [ref=e685]
+                      - button "Reset axes" [ref=e687] [cursor=pointer]:
+                        - img [ref=e688]
+                    - button "Fullscreen" [ref=e691] [cursor=pointer]:
+                      - img [ref=e692]
+                  - img
+              - generic [ref=e695]:
+                - generic [ref=e697]:
+                  - heading "Pontos diários" [level=3] [ref=e702]:
+                    - text: Pontos diários
+                    - generic [ref=e703]:
+                      - link "Link to heading":
+                        - /url: "#pontos-diarios"
+                        - img
+                  - paragraph [ref=e708]: Clique nas barras (ou desenhe um box) para filtrar dias.
+                  - generic [ref=e714]:
+                    - img:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: Mar 222026
+                            - generic:
+                              - generic: Apr 5
+                            - generic:
+                              - generic: Apr 19
+                            - generic:
+                              - generic: May 3
+                          - generic:
+                            - generic:
+                              - generic: −400
+                            - generic:
+                              - generic: −200
+                            - generic:
+                              - generic: "0"
+                            - generic:
+                              - generic: "200"
+                            - generic:
+                              - generic: "400"
+                    - img:
+                      - generic [ref=e731]:
+                        - generic [ref=e733]: Winning Pts
+                        - generic [ref=e740]: Losing Pts
+                    - toolbar [ref=e746]:
+                      - button "Download plot as a PNG" [ref=e748] [cursor=pointer]:
+                        - img [ref=e749]
+                      - generic [ref=e751]:
+                        - button "Zoom" [ref=e752] [cursor=pointer]:
+                          - img [ref=e753]
+                        - button "Pan" [ref=e755] [cursor=pointer]:
+                          - img [ref=e756]
+                        - button "Box Select" [ref=e758] [cursor=pointer]:
+                          - img [ref=e759]
+                      - generic [ref=e761]:
+                        - button "Zoom in" [ref=e762] [cursor=pointer]:
+                          - img [ref=e763]
+                        - button "Zoom out" [ref=e765] [cursor=pointer]:
+                          - img [ref=e766]
+                        - button "Autoscale" [ref=e768] [cursor=pointer]:
+                          - img [ref=e769]
+                        - button "Reset axes" [ref=e771] [cursor=pointer]:
+                          - img [ref=e772]
+                      - button "Fullscreen" [ref=e775] [cursor=pointer]:
+                        - img [ref=e776]
+                    - img
+                - generic [ref=e779]:
+                  - heading "Contratos por dia (size)" [level=3] [ref=e784]:
+                    - text: Contratos por dia (size)
+                    - generic [ref=e785]:
+                      - link "Link to heading":
+                        - /url: "#contratos-por-dia-size"
+                        - img
+                  - generic [ref=e791]:
+                    - img:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: Mar 222026
+                            - generic:
+                              - generic: Apr 5
+                            - generic:
+                              - generic: Apr 19
+                            - generic:
+                              - generic: May 3
+                          - generic:
+                            - generic:
+                              - generic: "0"
+                            - generic:
+                              - generic: "500"
+                            - generic:
+                              - generic: "1000"
+                            - generic:
+                              - generic: "1500"
+                    - img:
+                      - generic [ref=e808]:
+                        - generic [ref=e810]: Losing Size
+                        - generic [ref=e817]: Winning Size
+                    - toolbar [ref=e823]:
+                      - button "Download plot as a PNG" [ref=e825] [cursor=pointer]:
+                        - img [ref=e826]
+                      - generic [ref=e828]:
+                        - button "Zoom" [ref=e829] [cursor=pointer]:
+                          - img [ref=e830]
+                        - button "Pan" [ref=e832] [cursor=pointer]:
+                          - img [ref=e833]
+                      - generic [ref=e835]:
+                        - button "Zoom in" [ref=e836] [cursor=pointer]:
+                          - img [ref=e837]
+                        - button "Zoom out" [ref=e839] [cursor=pointer]:
+                          - img [ref=e840]
+                        - button "Autoscale" [ref=e842] [cursor=pointer]:
+                          - img [ref=e843]
+                        - button "Reset axes" [ref=e845] [cursor=pointer]:
+                          - img [ref=e846]
+                      - button "Fullscreen" [ref=e849] [cursor=pointer]:
+                        - img [ref=e850]
+                    - img
+              - generic [ref=e853]:
+                - generic [ref=e855]:
+                  - heading "PnL por dia da semana" [level=3] [ref=e860]:
+                    - text: PnL por dia da semana
+                    - generic [ref=e861]:
+                      - link "Link to heading":
+                        - /url: "#pn-l-por-dia-da-semana"
+                        - img
+                  - generic [ref=e867]:
+                    - img:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: Monday
+                            - generic:
+                              - generic: Tuesday
+                            - generic:
+                              - generic: Wednesday
+                            - generic:
+                              - generic: Thursday
+                            - generic:
+                              - generic: Friday
+                          - generic:
+                            - generic:
+                              - generic: −15k
+                            - generic:
+                              - generic: −10k
+                            - generic:
+                              - generic: −5k
+                            - generic:
+                              - generic: "0"
+                    - img
+                    - toolbar [ref=e881]:
+                      - button "Download plot as a PNG" [ref=e883] [cursor=pointer]:
+                        - img [ref=e884]
+                      - generic [ref=e886]:
+                        - button "Zoom" [ref=e887] [cursor=pointer]:
+                          - img [ref=e888]
+                        - button "Pan" [ref=e890] [cursor=pointer]:
+                          - img [ref=e891]
+                      - generic [ref=e893]:
+                        - button "Zoom in" [ref=e894] [cursor=pointer]:
+                          - img [ref=e895]
+                        - button "Zoom out" [ref=e897] [cursor=pointer]:
+                          - img [ref=e898]
+                        - button "Autoscale" [ref=e900] [cursor=pointer]:
+                          - img [ref=e901]
+                        - button "Reset axes" [ref=e903] [cursor=pointer]:
+                          - img [ref=e904]
+                      - button "Fullscreen" [ref=e907] [cursor=pointer]:
+                        - img [ref=e908]
+                    - img
+                - generic [ref=e911]:
+                  - heading "PnL por hora de entrada (BRT)" [level=3] [ref=e916]:
+                    - text: PnL por hora de entrada (BRT)
+                    - generic [ref=e917]:
+                      - link "Link to heading":
+                        - /url: "#pn-l-por-hora-de-entrada-brt"
+                        - img
+                  - generic [ref=e923]:
+                    - img:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: "8"
+                            - generic:
+                              - generic: "10"
+                            - generic:
+                              - generic: "12"
+                            - generic:
+                              - generic: "14"
+                            - generic:
+                              - generic: "16"
+                          - generic:
+                            - generic:
+                              - generic: −20k
+                            - generic:
+                              - generic: −15k
+                            - generic:
+                              - generic: −10k
+                            - generic:
+                              - generic: −5k
+                            - generic:
+                              - generic: "0"
+                    - img:
+                      - generic:
+                        - generic:
+                          - generic: Hora (BRT)
+                    - toolbar [ref=e937]:
+                      - button "Download plot as a PNG" [ref=e939] [cursor=pointer]:
+                        - img [ref=e940]
+                      - generic [ref=e942]:
+                        - button "Zoom" [ref=e943] [cursor=pointer]:
+                          - img [ref=e944]
+                        - button "Pan" [ref=e946] [cursor=pointer]:
+                          - img [ref=e947]
+                      - generic [ref=e949]:
+                        - button "Zoom in" [ref=e950] [cursor=pointer]:
+                          - img [ref=e951]
+                        - button "Zoom out" [ref=e953] [cursor=pointer]:
+                          - img [ref=e954]
+                        - button "Autoscale" [ref=e956] [cursor=pointer]:
+                          - img [ref=e957]
+                        - button "Reset axes" [ref=e959] [cursor=pointer]:
+                          - img [ref=e960]
+                      - button "Fullscreen" [ref=e963] [cursor=pointer]:
+                        - img [ref=e964]
+                    - img
+              - generic [ref=e967]:
+                - generic [ref=e969]:
+                  - heading "PnL por contrato" [level=3] [ref=e974]:
+                    - text: PnL por contrato
+                    - generic [ref=e975]:
+                      - link "Link to heading":
+                        - /url: "#pn-l-por-contrato"
+                        - img
+                  - generic [ref=e981]:
+                    - img:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: −40k
+                            - generic:
+                              - generic: −30k
+                            - generic:
+                              - generic: −20k
+                            - generic:
+                              - generic: −10k
+                            - generic:
+                              - generic: "0"
+                          - generic:
+                            - generic:
+                              - generic: MNQM6
+                            - generic:
+                              - generic: MNQH6
+                    - img
+                    - toolbar [ref=e995]:
+                      - button "Download plot as a PNG" [ref=e997] [cursor=pointer]:
+                        - img [ref=e998]
+                      - generic [ref=e1000]:
+                        - button "Zoom" [ref=e1001] [cursor=pointer]:
+                          - img [ref=e1002]
+                        - button "Pan" [ref=e1004] [cursor=pointer]:
+                          - img [ref=e1005]
+                      - generic [ref=e1007]:
+                        - button "Zoom in" [ref=e1008] [cursor=pointer]:
+                          - img [ref=e1009]
+                        - button "Zoom out" [ref=e1011] [cursor=pointer]:
+                          - img [ref=e1012]
+                        - button "Autoscale" [ref=e1014] [cursor=pointer]:
+                          - img [ref=e1015]
+                        - button "Reset axes" [ref=e1017] [cursor=pointer]:
+                          - img [ref=e1018]
+                      - button "Fullscreen" [ref=e1021] [cursor=pointer]:
+                        - img [ref=e1022]
+                    - img
+                - generic [ref=e1025]:
+                  - heading "Calendário de PnL diário" [level=3] [ref=e1030]:
+                    - text: Calendário de PnL diário
+                    - generic [ref=e1031]:
+                      - link "Link to heading":
+                        - /url: "#calendario-de-pn-l-diario"
+                        - img
+                  - paragraph [ref=e1036]: Clique nas células (ou desenhe um box) para filtrar dias.
+                  - generic [ref=e1042]:
+                    - img:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - generic:
+                                    - generic: 16/03$777
+                                  - generic:
+                                    - generic: 17/03$-2,118
+                                  - generic:
+                                    - generic: 18/03
+                                  - generic:
+                                    - generic: 19/03
+                                  - generic:
+                                    - generic: 20/03$-2,142
+                                  - generic:
+                                    - generic: 21/03
+                                  - generic:
+                                    - generic: 22/03
+                                  - generic:
+                                    - generic: 23/03
+                                  - generic:
+                                    - generic: 24/03
+                                  - generic:
+                                    - generic: 25/03
+                                  - generic:
+                                    - generic: 26/03
+                                  - generic:
+                                    - generic: 27/03$-4,245
+                                  - generic:
+                                    - generic: 28/03
+                                  - generic:
+                                    - generic: 29/03
+                                  - generic:
+                                    - generic: 30/03$-4,644
+                                  - generic:
+                                    - generic: 31/03
+                                  - generic:
+                                    - generic: 01/04
+                                  - generic:
+                                    - generic: 02/04
+                                  - generic:
+                                    - generic: 03/04
+                                  - generic:
+                                    - generic: 04/04
+                                  - generic:
+                                    - generic: 05/04
+                                  - generic:
+                                    - generic: 06/04$-2,252
+                                  - generic:
+                                    - generic: 07/04
+                                  - generic:
+                                    - generic: 08/04
+                                  - generic:
+                                    - generic: 09/04
+                                  - generic:
+                                    - generic: 10/04
+                                  - generic:
+                                    - generic: 11/04
+                                  - generic:
+                                    - generic: 12/04
+                                  - generic:
+                                    - generic: 13/04$1,086
+                                  - generic:
+                                    - generic: 14/04$394
+                                  - generic:
+                                    - generic: 15/04$967
+                                  - generic:
+                                    - generic: 16/04$1,661
+                                  - generic:
+                                    - generic: 17/04$-3,850
+                                  - generic:
+                                    - generic: 18/04
+                                  - generic:
+                                    - generic: 19/04
+                                  - generic:
+                                    - generic: 20/04$-2,112
+                                  - generic:
+                                    - generic: 21/04
+                                  - generic:
+                                    - generic: 22/04$741
+                                  - generic:
+                                    - generic: 23/04$-2,140
+                                  - generic:
+                                    - generic: 24/04
+                                  - generic:
+                                    - generic: 25/04
+                                  - generic:
+                                    - generic: 26/04
+                                  - generic:
+                                    - generic: 27/04
+                                  - generic:
+                                    - generic: 28/04$1,503
+                                  - generic:
+                                    - generic: 29/04$-2,222
+                                  - generic:
+                                    - generic: 30/04$-4,809
+                                  - generic:
+                                    - generic: 01/05$-6,409
+                                  - generic:
+                                    - generic: 02/05
+                                  - generic:
+                                    - generic: 03/05
+                                  - generic:
+                                    - generic: 04/05$-4,477
+                                  - generic:
+                                    - generic: 05/05$-2,112
+                                  - generic:
+                                    - generic: 06/05$-1,667
+                                  - generic:
+                                    - generic: 07/05$970
+                                  - generic:
+                                    - generic: 08/05
+                                  - generic:
+                                    - generic: 09/05
+                                  - generic:
+                                    - generic: 10/05
+                                  - generic:
+                                    - generic: 11/05$3,101
+                                  - generic:
+                                    - generic: 12/05$-4,932
+                                  - generic:
+                                    - generic: "null"
+                                  - generic:
+                                    - generic: "null"
+                                  - generic:
+                                    - generic: "null"
+                                  - generic:
+                                    - generic: "null"
+                                  - generic:
+                                    - generic: "null"
+                          - generic:
+                            - generic:
+                              - generic: Seg
+                            - generic:
+                              - generic: Ter
+                            - generic:
+                              - generic: Qua
+                            - generic:
+                              - generic: Qui
+                            - generic:
+                              - generic: Sex
+                            - generic:
+                              - generic: Sáb
+                            - generic:
+                              - generic: Dom
+                          - generic:
+                            - generic:
+                              - generic: 2026-W12$-3,483102 trades
+                            - generic:
+                              - generic: 2026-W13$-4,24532 trades
+                            - generic:
+                              - generic: 2026-W14$-4,64470 trades
+                            - generic:
+                              - generic: 2026-W15$-2,25216 trades
+                            - generic:
+                              - generic: 2026-W16$259229 trades
+                            - generic:
+                              - generic: 2026-W17$-3,51088 trades
+                            - generic:
+                              - generic: 2026-W18$-11,937129 trades
+                            - generic:
+                              - generic: 2026-W19$-7,286146 trades
+                            - generic:
+                              - generic: 2026-W20$-1,83113 trades
+                    - img
+                    - toolbar [ref=e1056]:
+                      - button "Download plot as a PNG" [ref=e1058] [cursor=pointer]:
+                        - img [ref=e1059]
+                      - generic [ref=e1061]:
+                        - button "Zoom" [ref=e1062] [cursor=pointer]:
+                          - img [ref=e1063]
+                        - button "Pan" [ref=e1065] [cursor=pointer]:
+                          - img [ref=e1066]
+                      - generic [ref=e1068]:
+                        - button "Zoom in" [ref=e1069] [cursor=pointer]:
+                          - img [ref=e1070]
+                        - button "Zoom out" [ref=e1072] [cursor=pointer]:
+                          - img [ref=e1073]
+                        - button "Autoscale" [ref=e1075] [cursor=pointer]:
+                          - img [ref=e1076]
+                        - button "Reset axes" [ref=e1078] [cursor=pointer]:
+                          - img [ref=e1079]
+                      - button "Fullscreen" [ref=e1082] [cursor=pointer]:
+                        - img [ref=e1083]
+                    - img
+              - separator [ref=e1089]
+              - heading "Daily P&L ($)" [level=3] [ref=e1094]:
+                - text: Daily P&L ($)
+                - generic [ref=e1095]:
+                  - link "Link to heading":
+                    - /url: "#daily-p-and-l"
+                    - img
+              - generic [ref=e1097]:
+                - generic [ref=e1105]:
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic: Mar 222026
+                          - generic:
+                            - generic: Apr 5
+                          - generic:
+                            - generic: Apr 19
+                          - generic:
+                            - generic: May 3
+                        - generic:
+                          - generic:
+                            - generic: −40k
+                          - generic:
+                            - generic: −30k
+                          - generic:
+                            - generic: −20k
+                          - generic:
+                            - generic: −10k
+                          - generic:
+                            - generic: "0"
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Daily Net Cumulative P&L
+                  - toolbar [ref=e1119]:
+                    - button "Download plot as a PNG" [ref=e1121] [cursor=pointer]:
+                      - img [ref=e1122]
+                    - generic [ref=e1124]:
+                      - button "Zoom" [ref=e1125] [cursor=pointer]:
+                        - img [ref=e1126]
+                      - button "Pan" [ref=e1128] [cursor=pointer]:
+                        - img [ref=e1129]
+                    - generic [ref=e1131]:
+                      - button "Zoom in" [ref=e1132] [cursor=pointer]:
+                        - img [ref=e1133]
+                      - button "Zoom out" [ref=e1135] [cursor=pointer]:
+                        - img [ref=e1136]
+                      - button "Autoscale" [ref=e1138] [cursor=pointer]:
+                        - img [ref=e1139]
+                      - button "Reset axes" [ref=e1141] [cursor=pointer]:
+                        - img [ref=e1142]
+                    - button "Fullscreen" [ref=e1145] [cursor=pointer]:
+                      - img [ref=e1146]
+                  - img
+                - generic [ref=e1155]:
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic: Mar 222026
+                          - generic:
+                            - generic: Apr 5
+                          - generic:
+                            - generic: Apr 19
+                          - generic:
+                            - generic: May 3
+                        - generic:
+                          - generic:
+                            - generic: −6000
+                          - generic:
+                            - generic: −4000
+                          - generic:
+                            - generic: −2000
+                          - generic:
+                            - generic: "0"
+                          - generic:
+                            - generic: "2000"
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Net Daily P&L
+                  - toolbar [ref=e1169]:
+                    - button "Download plot as a PNG" [ref=e1171] [cursor=pointer]:
+                      - img [ref=e1172]
+                    - generic [ref=e1174]:
+                      - button "Zoom" [ref=e1175] [cursor=pointer]:
+                        - img [ref=e1176]
+                      - button "Pan" [ref=e1178] [cursor=pointer]:
+                        - img [ref=e1179]
+                    - generic [ref=e1181]:
+                      - button "Zoom in" [ref=e1182] [cursor=pointer]:
+                        - img [ref=e1183]
+                      - button "Zoom out" [ref=e1185] [cursor=pointer]:
+                        - img [ref=e1186]
+                      - button "Autoscale" [ref=e1188] [cursor=pointer]:
+                        - img [ref=e1189]
+                      - button "Reset axes" [ref=e1191] [cursor=pointer]:
+                        - img [ref=e1192]
+                    - button "Fullscreen" [ref=e1195] [cursor=pointer]:
+                      - img [ref=e1196]
+                  - img
+              - generic [ref=e1199]:
+                - generic [ref=e1201]:
+                  - heading "Trade Duration Analysis" [level=3] [ref=e1206]:
+                    - text: Trade Duration Analysis
+                    - generic [ref=e1207]:
+                      - link "Link to heading":
+                        - /url: "#trade-duration-analysis"
+                        - img
+                  - generic [ref=e1213]:
+                    - img:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - generic:
+                                    - generic:
+                                      - generic: "318"
+                                    - generic:
+                                      - generic: "319"
+                                    - generic:
+                                      - generic: "57"
+                                    - generic:
+                                      - generic: "100"
+                                    - generic:
+                                      - generic: "30"
+                                    - generic:
+                                      - generic: "1"
+                                    - generic:
+                                      - generic: "0"
+                                    - generic:
+                                      - generic: "0"
+                                    - generic:
+                                      - generic: "0"
+                                    - generic:
+                                      - generic: "0"
+                                    - generic:
+                                      - generic: "0"
+                          - generic:
+                            - generic:
+                              - generic: "0"
+                            - generic:
+                              - generic: "100"
+                            - generic:
+                              - generic: "200"
+                            - generic:
+                              - generic: "300"
+                          - generic:
+                            - generic:
+                              - generic: 4 hours and up
+                            - generic:
+                              - generic: 2 hours - 4 hours
+                            - generic:
+                              - generic: 1 hour - 2 hours
+                            - generic:
+                              - generic: 30 min - 1 hour
+                            - generic:
+                              - generic: 10 min - 30 min
+                            - generic:
+                              - generic: 5 min - 10 min
+                            - generic:
+                              - generic: 2 min - 5 min
+                            - generic:
+                              - generic: 1 min - 2 min
+                            - generic:
+                              - generic: 45 sec - 1 min
+                            - generic:
+                              - generic: 15-45 sec
+                            - generic:
+                              - generic: Under 15 sec
+                    - img
+                    - toolbar [ref=e1227]:
+                      - button "Download plot as a PNG" [ref=e1229] [cursor=pointer]:
+                        - img [ref=e1230]
+                      - generic [ref=e1232]:
+                        - button "Zoom" [ref=e1233] [cursor=pointer]:
+                          - img [ref=e1234]
+                        - button "Pan" [ref=e1236] [cursor=pointer]:
+                          - img [ref=e1237]
+                      - generic [ref=e1239]:
+                        - button "Zoom in" [ref=e1240] [cursor=pointer]:
+                          - img [ref=e1241]
+                        - button "Zoom out" [ref=e1243] [cursor=pointer]:
+                          - img [ref=e1244]
+                        - button "Autoscale" [ref=e1246] [cursor=pointer]:
+                          - img [ref=e1247]
+                        - button "Reset axes" [ref=e1249] [cursor=pointer]:
+                          - img [ref=e1250]
+                      - button "Fullscreen" [ref=e1253] [cursor=pointer]:
+                        - img [ref=e1254]
+                    - img
+                - generic [ref=e1257]:
+                  - heading "Win Rate Analysis" [level=3] [ref=e1262]:
+                    - text: Win Rate Analysis
+                    - generic [ref=e1263]:
+                      - link "Link to heading":
+                        - /url: "#win-rate-analysis"
+                        - img
+                  - generic [ref=e1269]:
+                    - img:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic:
+                                - generic:
+                                  - generic:
+                                    - generic:
+                                      - generic: 19%
+                                    - generic:
+                                      - generic: 23%
+                                    - generic:
+                                      - generic: 49%
+                                    - generic:
+                                      - generic: 60%
+                                    - generic:
+                                      - generic: 67%
+                                    - generic:
+                                      - generic: 100%
+                          - generic:
+                            - generic:
+                              - generic: 0%
+                            - generic:
+                              - generic: 20%
+                            - generic:
+                              - generic: 40%
+                            - generic:
+                              - generic: 60%
+                            - generic:
+                              - generic: 80%
+                            - generic:
+                              - generic: 100%
+                          - generic:
+                            - generic:
+                              - generic: 4 hours and up
+                            - generic:
+                              - generic: 2 hours - 4 hours
+                            - generic:
+                              - generic: 1 hour - 2 hours
+                            - generic:
+                              - generic: 30 min - 1 hour
+                            - generic:
+                              - generic: 10 min - 30 min
+                            - generic:
+                              - generic: 5 min - 10 min
+                            - generic:
+                              - generic: 2 min - 5 min
+                            - generic:
+                              - generic: 1 min - 2 min
+                            - generic:
+                              - generic: 45 sec - 1 min
+                            - generic:
+                              - generic: 15-45 sec
+                            - generic:
+                              - generic: Under 15 sec
+                    - img
+                    - toolbar [ref=e1283]:
+                      - button "Download plot as a PNG" [ref=e1285] [cursor=pointer]:
+                        - img [ref=e1286]
+                      - generic [ref=e1288]:
+                        - button "Zoom" [ref=e1289] [cursor=pointer]:
+                          - img [ref=e1290]
+                        - button "Pan" [ref=e1292] [cursor=pointer]:
+                          - img [ref=e1293]
+                      - generic [ref=e1295]:
+                        - button "Zoom in" [ref=e1296] [cursor=pointer]:
+                          - img [ref=e1297]
+                        - button "Zoom out" [ref=e1299] [cursor=pointer]:
+                          - img [ref=e1300]
+                        - button "Autoscale" [ref=e1302] [cursor=pointer]:
+                          - img [ref=e1303]
+                        - button "Reset axes" [ref=e1305] [cursor=pointer]:
+                          - img [ref=e1306]
+                      - button "Fullscreen" [ref=e1309] [cursor=pointer]:
+                        - img [ref=e1310]
+                    - img
+              - separator [ref=e1316]
+              - group [ref=e1319]:
+                - generic "keyboard_arrow_right Análise de Adições (operações agrupadas)" [ref=e1320] [cursor=pointer]:
+                  - generic [ref=e1321]:
+                    - generic [ref=e1323]: keyboard_arrow_right
+                    - paragraph [ref=e1326]: Análise de Adições (operações agrupadas)
+              - separator [ref=e1331]
+              - heading "Trades (825)" [level=3] [ref=e1336]:
+                - text: Trades (825)
+                - generic [ref=e1337]:
+                  - link "Link to heading":
+                    - /url: "#trades-825"
+                    - img
+              - generic [ref=e1342]:
+                - button "Show/hide columns" [ref=e1346] [cursor=pointer]:
+                  - img [ref=e1347]
+                - button "Download as CSV" [ref=e1352] [cursor=pointer]:
+                  - img [ref=e1353]
+                - button "Search" [ref=e1358] [cursor=pointer]:
+                  - img [ref=e1359]
+                - button "Fullscreen" [ref=e1364] [cursor=pointer]:
+                  - img [ref=e1365]
+  - img [ref=e1376]

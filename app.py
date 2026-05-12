@@ -12,21 +12,20 @@ Rodar:   streamlit run app.py
 
 from __future__ import annotations
 
-import os
 from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from dotenv import load_dotenv
-from supabase import create_client
 
+import action_plan
+import auth
 import coach_ai
+import ingest_core
 import metrics
 
 ROOT = Path(__file__).resolve().parent
-ENV_FILE = ROOT / "Env" / "Topstep_bi.env"
 
 # ----------------------------- Tema / Cores ----------------------------------
 
@@ -102,21 +101,22 @@ st.markdown(
 )
 
 
+# ----------------------------- Auth gate -------------------------------------
+
+auth.login_screen()  # bloqueia o app se o usuário não estiver logado
+_user = auth.current_user()
+
+
 # ----------------------------- Data loading ----------------------------------
 
 
 @st.cache_data(ttl=60)
-def load_trades() -> pd.DataFrame:
-    load_dotenv(ENV_FILE)
-    url = os.getenv("NEXT_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    if not url or not key:
-        st.error(
-            "Credenciais Supabase não encontradas em Env/Topstep_bi.env "
-            "(NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY)."
-        )
-        st.stop()
-    client = create_client(url, key)
+def load_trades(user_id: str) -> pd.DataFrame:
+    # `user_id` é parte da chave do cache: dois usuários logados nunca
+    # compartilham o mesmo DataFrame em memória. A RLS no banco já garante
+    # filtragem; este parâmetro é só pro Streamlit isolar o cache.
+    del user_id  # usado apenas como chave de cache
+    client = auth.get_client()
     rows: list[dict] = []
     page = 0
     while True:
@@ -713,43 +713,106 @@ def render_coach(
 ) -> None:
     coach = metrics.compute_coach(df, groups)
 
-    # --- Botão AI: análise narrativa via Claude Code CLI -----------------------
+    # --- Gerador de prompt para análise em LLM externa -------------------------
     ai_col1, ai_col2 = st.columns([1, 3])
     with ai_col1:
-        run_ai = st.button(
-            "🤖 Análise com Claude AI",
+        gen_prompt = st.button(
+            "📋 Gerar prompt para análise em LLM",
             type="primary",
             use_container_width=True,
             help=(
-                "Envia um snapshot agregado dos trades filtrados ao Claude Code CLI "
-                "(claude -p) e mostra a análise narrativa. Consome cota do seu plano."
+                "Monta um prompt completo com os dados filtrados. "
+                "Copie e cole na UI da LLM de sua preferência."
             ),
         )
     with ai_col2:
-        if not coach_ai.claude_available():
-            st.warning("CLI `claude` não encontrado no PATH. Instale Claude Code para usar este botão.")
-        else:
-            st.caption("Roda em background (~30-60s). Spinner indica progresso.")
+        st.caption(
+            "Copie o prompt e cole em Gemini, Perplexity, ChatGPT ou Claude.ai."
+        )
 
-    if run_ai:
-        with st.spinner("Claude analisando os trades…"):
-            prompt = coach_ai.build_prompt(df, groups, df_all, filter_ctx)
-            result = coach_ai.run_claude(prompt)
-        st.session_state["coach_ai_last"] = result
-        st.session_state["coach_ai_prompt"] = prompt
+    if gen_prompt:
+        history = coach_ai.fetch_history(filter_ctx.contracts)
+        st.session_state["coach_ai_prompt"] = coach_ai.build_prompt(
+            df, groups, df_all, filter_ctx, history=history
+        )
+        st.session_state["coach_ai_history_count"] = len(history)
+        st.session_state["coach_prompt_collapsed"] = False
 
-    if "coach_ai_last" in st.session_state:
-        last = st.session_state["coach_ai_last"]
-        if last["ok"]:
-            with st.container(border=True):
-                st.markdown("### 🤖 Análise Claude AI")
-                # Escapa `$` para o Streamlit não interpretar valores monetários
-                # como fórmulas LaTeX (que vinham renderizadas em itálico serifado).
-                st.markdown(last["text"].replace("$", r"\$"))
-            with st.expander("Ver prompt enviado (debug)", expanded=False):
-                st.code(st.session_state.get("coach_ai_prompt", ""), language="markdown")
-        else:
-            st.error(f"Erro: {last['error']}")
+    if "coach_ai_prompt" in st.session_state:
+        with st.container(border=True):
+            header_col, btn_col = st.columns([4, 1])
+            with header_col:
+                st.markdown("### 📋 Prompt pronto para colar na LLM")
+                hist_n = st.session_state.get("coach_ai_history_count", 0)
+                if hist_n:
+                    st.caption(
+                        f"Incluí {hist_n} análise(s) anterior(es) sobre estes contratos — "
+                        "a LLM vai cobrar reincidência."
+                    )
+                else:
+                    st.caption("Sem análises anteriores para estes contratos.")
+            with btn_col:
+                collapsed = st.session_state.get("coach_prompt_collapsed", False)
+                label = "📂 Expandir" if collapsed else "📁 Recolher"
+                if st.button(label, key="toggle_prompt", use_container_width=True):
+                    st.session_state["coach_prompt_collapsed"] = not collapsed
+                    st.rerun()
+
+            if not st.session_state.get("coach_prompt_collapsed", False):
+                st.caption(
+                    "Clique no ícone de copiar no canto superior direito do bloco."
+                )
+                st.code(st.session_state["coach_ai_prompt"], language="markdown")
+                with st.expander("Onde colar", expanded=False):
+                    st.markdown(
+                        "- Gemini: https://gemini.google.com\n"
+                        "- Perplexity: https://perplexity.ai\n"
+                        "- ChatGPT: https://chat.openai.com\n"
+                        "- Claude: https://claude.ai"
+                    )
+
+        with st.container(border=True):
+            st.markdown("### 💾 Cole aqui a resposta da LLM e salve")
+            st.caption(
+                "Salva no Supabase (tabela coach_analyses). Análises futuras "
+                "deste contrato vão usar este texto para cobrar reincidência."
+            )
+
+            # Limpa o textarea ANTES de instanciar o widget (flag setada no
+            # ciclo anterior, após salvar com sucesso).
+            if st.session_state.pop("coach_response_clear", False):
+                st.session_state["coach_response_text"] = ""
+
+            last_saved = st.session_state.pop("coach_response_saved_msg", None)
+            if last_saved:
+                st.success(last_saved)
+
+            response_text = st.text_area(
+                "Resposta da LLM (markdown)",
+                key="coach_response_text",
+                height=240,
+                placeholder="Cole aqui a análise completa que a LLM gerou...",
+                label_visibility="collapsed",
+            )
+            save_col, status_col = st.columns([1, 3])
+            with save_col:
+                save_clicked = st.button(
+                    "💾 Salvar análise",
+                    type="primary",
+                    use_container_width=True,
+                    disabled=not response_text.strip(),
+                )
+            with status_col:
+                if save_clicked:
+                    result = coach_ai.save_analysis(filter_ctx, response_text)
+                    if result["ok"]:
+                        st.session_state["coach_response_clear"] = True
+                        st.session_state["coach_response_saved_msg"] = (
+                            "Análise salva no Supabase."
+                        )
+                        st.rerun()
+                    else:
+                        st.error(f"Erro ao salvar: {result['error']}")
 
     st.divider()
 
@@ -937,15 +1000,161 @@ def render_coach(
             st.markdown(f"<div class='coach-check'>• {item}</div>", unsafe_allow_html=True)
 
 
+# ----------------------------- Plano de Ação ---------------------------------
+
+
+@st.cache_data(ttl=30)
+def _load_action_items() -> pd.DataFrame:
+    return action_plan.list_items()
+
+
+def render_action_plan() -> None:
+    st.subheader("Plano de Ação")
+    st.caption(
+        "To-do simples. Edite linhas inline, use o último símbolo (+) para adicionar, "
+        "marque a célula e pressione Delete para remover. Clique em **Salvar alterações** "
+        "para persistir no Supabase."
+    )
+
+    try:
+        original = _load_action_items()
+    except Exception as e:
+        msg = str(e)
+        if "action_items" in msg or "does not exist" in msg.lower():
+            st.error(
+                "Tabela `public.action_items` não existe no Supabase. "
+                "Rode o bloco do `PRD/schema.sql` (seção 'Plano de Ação') no SQL Editor."
+            )
+        else:
+            st.error(f"Falha ao carregar plano de ação: {msg}")
+        return
+
+    # KPIs ---------------------------------------------------------------
+    if not original.empty:
+        pend = int((original["status"] == "Pendente").sum())
+        anda = int((original["status"] == "Em andamento").sum())
+        conc = int((original["status"] == "Concluído").sum())
+    else:
+        pend = anda = conc = 0
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Pendente", pend)
+    k2.metric("Em andamento", anda)
+    k3.metric("Concluído", conc)
+
+    # Editor -------------------------------------------------------------
+    # Snapshot original em session_state para o diff no save.
+    st.session_state["_action_plan_original"] = original.copy()
+
+    edited = st.data_editor(
+        original,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_order=action_plan.EDITABLE_COLUMNS,
+        column_config={
+            "task": st.column_config.TextColumn(
+                "Tarefa", required=True, width="large",
+            ),
+            "priority": st.column_config.SelectboxColumn(
+                "Prioridade",
+                options=list(action_plan.VALID_PRIORITY),
+                default="Média", required=True, width="small",
+            ),
+            "status": st.column_config.SelectboxColumn(
+                "Status",
+                options=list(action_plan.VALID_STATUS),
+                default="Pendente", required=True, width="small",
+            ),
+            "due_date": st.column_config.DateColumn(
+                "Data estimada", format="DD/MM/YYYY", width="small",
+            ),
+            "done": st.column_config.CheckboxColumn(
+                "Concluir", default=False, width="small",
+            ),
+            # Mantém id internamente para o diff, mas oculto via column_order.
+            "id": None, "created_at": None, "updated_at": None,
+        },
+        key="action_plan_editor",
+    )
+
+    col_save, col_reload, _ = st.columns([1, 1, 4])
+    save_clicked = col_save.button("Salvar alterações", type="primary", use_container_width=True)
+    reload_clicked = col_reload.button("Recarregar", use_container_width=True)
+
+    if reload_clicked:
+        _load_action_items.clear()
+        st.rerun()
+
+    if save_clicked:
+        with st.spinner("Salvando…"):
+            result = action_plan.upsert_items(original, edited)
+        if result["ok"]:
+            st.success(
+                f"Salvo: {result['inserted']} novas, {result['updated']} atualizadas, "
+                f"{result['deleted']} removidas."
+            )
+            _load_action_items.clear()
+            st.rerun()
+        else:
+            st.error(f"Falha ao salvar: {result['error']}")
+
+
+# ----------------------------- Importar CSVs --------------------------------
+
+
+def render_import(user_id: str) -> None:
+    st.subheader("Importar CSVs")
+    st.caption(
+        "Selecione um ou mais CSVs exportados do TopStepX (ou do TopStep "
+        "Dashboard legacy). O upload acontece sob sua conta — outros usuários "
+        "não veem seus dados."
+    )
+    files = st.file_uploader(
+        "Arquivos CSV",
+        type="csv",
+        accept_multiple_files=True,
+        key="csv_uploader",
+    )
+    col_btn, _ = st.columns([1, 3])
+    if files and col_btn.button("Importar", type="primary", use_container_width=True):
+        client = auth.get_client()
+        total = 0
+        rows_log: list[dict] = []
+        with st.spinner(f"Processando {len(files)} arquivo(s)…"):
+            for f in files:
+                n, fmt, err = ingest_core.ingest_uploaded_csv(f, client, user_id)
+                total += n
+                rows_log.append(
+                    {"Arquivo": f.name, "Formato": fmt, "Linhas": n, "Status": err or "ok"}
+                )
+        st.success(f"Importação concluída: {total} trades upsertados.")
+        st.dataframe(pd.DataFrame(rows_log), use_container_width=True, hide_index=True)
+        # Invalida o cache para o próximo load_trades pegar os novos trades.
+        load_trades.clear()
+
+
 # ----------------------------- App -------------------------------------------
 
-df_all = load_trades()
+# Sidebar superior: identidade do usuário + sair (renderizado antes dos filtros
+# para ficar no topo da barra lateral).
+with st.sidebar:
+    st.markdown(f"👤 **{_user.get('email') or _user['id']}**")
+    if st.button("Sair", use_container_width=True, key="btn_sign_out"):
+        auth.sign_out()
+    st.divider()
+
+df_all = load_trades(_user["id"])
 
 st.title("BI TopStep")
-st.caption("Dashboard de trades — filtros aplicam em todos os gráficos.")
+st.caption(f"Dashboard de trades — logado como **{_user.get('email') or _user['id']}**.")
 
+# Sem trades ainda: pula filtros e mostra só a aba de upload.
 if df_all.empty:
-    st.warning("Nenhum trade no banco ainda. Rode `python ingest.py` primeiro.")
+    st.warning(
+        "Nenhum trade no seu perfil ainda. Suba os CSVs exportados do TopStepX "
+        "abaixo para popular o dashboard."
+    )
+    render_import(_user["id"])
     st.stop()
 
 # --- Sidebar: filtros (cross-filter) -----------------------------------------
@@ -1106,7 +1315,9 @@ overview = metrics.compute_overview(df_with_groups)
 
 # --- Abas --------------------------------------------------------------------
 
-tab_dash, tab_coach = st.tabs(["Dashboard", "Coach"])
+tab_dash, tab_coach, tab_plan, tab_import = st.tabs(
+    ["Dashboard", "Coach", "Plano de Ação", "Importar CSVs"]
+)
 
 with tab_dash:
     render_dashboard(df, df_with_groups, groups, pts_kpis, segments, daily, overview)
@@ -1121,3 +1332,9 @@ with tab_coach:
         result_filter=result_filter,
     )
     render_coach(df_with_groups, groups, df_all, filter_ctx)
+
+with tab_plan:
+    render_action_plan()
+
+with tab_import:
+    render_import(_user["id"])

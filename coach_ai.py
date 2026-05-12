@@ -1,30 +1,40 @@
 """
-Coach AI — chama o Claude Code CLI em modo headless (`claude -p`) com um
-prompt que sumariza os trades filtrados e pede análise narrativa.
+Coach AI — gera um prompt pronto para copiar e colar em qualquer UI de LLM
+(Gemini, Perplexity, ChatGPT, Claude.ai). Não executa LLM diretamente.
 
 Estratégia:
-- Pré-agregamos métricas em Python (rápido, sem token) e passamos o snapshot
-  no prompt. Mais barato e mais determinístico que pedir Claude pra consultar
-  o Supabase do zero.
-- Incluímos um trecho de instruções pro Claude: como interpretar, o que evitar,
-  formato de saída em markdown.
+- Pré-agregamos métricas em Python (rápido, sem token) e montamos um snapshot
+  JSON. O usuário cola o prompt resultante na LLM de preferência.
+- Cabeçalho com período (DD/MM/YYYY) e hora local (America/Sao_Paulo) do
+  momento de geração, para rastreabilidade.
 - Calculamos um período-baseline (mesma duração imediatamente antes) pra
   comparação de tendência.
-
-`run_claude(prompt)` é blocking — o caller (Streamlit) deve usar `st.spinner`.
 """
 
 from __future__ import annotations
 
 import json
-import shutil
-import subprocess
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
+from supabase import Client
 
+import auth
 import metrics
+
+_TZ_SP = ZoneInfo("America/Sao_Paulo")
+
+
+def _supabase() -> Client:
+    """Cliente Supabase com a sessão do usuário logado (RLS ativa)."""
+    return auth.get_client()
+
+
+def _current_user_id() -> str | None:
+    user = auth.current_user()
+    return user["id"] if user else None
 
 
 @dataclass
@@ -142,8 +152,14 @@ def build_prompt(
     groups: pd.DataFrame,
     df_all: pd.DataFrame,
     ctx: FilterContext,
+    history: list[dict] | None = None,
 ) -> str:
-    """Monta o prompt completo enviado pro Claude."""
+    """Monta o prompt completo para ser copiado e colado em uma UI de LLM.
+
+    Se `history` for fornecido (lista de dicts com `created_at`, `period_start`,
+    `period_end` e `response_text`), inclui uma seção de avisos anteriores
+    pedindo que a LLM cobre o trader em caso de reincidência.
+    """
     current = _summarize(df, groups)
     current["range"] = {"start": ctx.start.isoformat(), "end": ctx.end.isoformat()}
     baseline = _baseline_window(df_all, ctx)
@@ -162,11 +178,20 @@ def build_prompt(
     }
     payload_json = json.dumps(payload, ensure_ascii=False, indent=2, default=str)
 
-    prompt = f"""Você é um coach de trading especializado em day trading de futuros (mini índices, mini SP, etc).
+    now_sp = datetime.now(_TZ_SP)
+    header = (
+        f"Trades de: {ctx.start.strftime('%d/%m/%Y')} a {ctx.end.strftime('%d/%m/%Y')}\n"
+        f"Hora: {now_sp.strftime('%H:%M')}\n\n"
+    )
+
+    history_block = _format_history_block(history) if history else ""
+
+    prompt = header + f"""Você é um coach de trading especializado em day trading de futuros (mini índices, mini SP, etc).
 
 Estou te enviando um snapshot agregado das minhas operações em um período filtrado, junto com um período-baseline imediatamente anterior do mesmo tamanho pra você comparar tendência. Os dados já foram pré-processados — você NÃO precisa consultar nenhum banco. Trabalhe SÓ com o JSON abaixo.
 
 FILTROS APLICADOS: {filters_str}
+{history_block}
 
 DADOS (JSON):
 ```json
@@ -203,53 +228,138 @@ REGRAS:
 - Não invente padrões que os dados não suportam. Se a amostra é < 30 trades em algum corte, diga.
 - Não cite o JSON literalmente; traduza pra linguagem de trader.
 - Se total_pnl_net for positivo, reconheça — mas mantenha visão crítica.
+- Se a seção AVISOS ANTERIORES existir e o trader estiver repetindo um padrão já apontado, seja MAIS DURO: cite explicitamente "isso você já foi avisado em [data]", cobre por que não foi corrigido, e exija ação no checklist da próxima sessão.
 """
     return prompt
 
 
 # ---------------------------------------------------------------------------
-# Claude CLI execution
+# Histórico de análises (Supabase)
 # ---------------------------------------------------------------------------
 
 
-def claude_available() -> bool:
-    return shutil.which("claude") is not None
+def _extract_checklist(response_text: str) -> list[str]:
+    """Tenta extrair bullets das seções 4 (checklist) e 2 (padrões).
 
-
-def run_claude(prompt: str, timeout_sec: int = 180) -> dict:
-    """Executa `claude -p <prompt>` e devolve dict com stdout/stderr/erro.
-
-    O retorno tem sempre as chaves: ok (bool), text (str), error (str|None).
+    Estratégia: procura headers `## 4` ou `## 2`, lê linhas até o próximo
+    `##` ou fim, e captura linhas começando com `-` ou `*` ou `1.`.
+    Fallback: bullets em qualquer lugar do texto.
     """
-    if not claude_available():
-        return {
-            "ok": False,
-            "text": "",
-            "error": "CLI `claude` não está no PATH. Instale Claude Code (https://claude.com/claude-code) e faça login.",
-        }
+    bullets: list[str] = []
+    lines = response_text.splitlines()
+    capture_priority: list[tuple[int, int, int]] = []  # (prioridade, idx_ini, idx_fim)
 
+    section_start = None
+    section_priority = 99
+    for i, raw in enumerate(lines):
+        stripped = raw.strip()
+        if stripped.startswith("## "):
+            if section_start is not None:
+                capture_priority.append((section_priority, section_start, i))
+            lower = stripped.lower()
+            if "checklist" in lower or stripped.startswith("## 4"):
+                section_priority = 1
+                section_start = i + 1
+            elif "padr" in lower or stripped.startswith("## 2"):
+                section_priority = 2
+                section_start = i + 1
+            else:
+                section_start = None
+    if section_start is not None:
+        capture_priority.append((section_priority, section_start, len(lines)))
+
+    capture_priority.sort(key=lambda t: t[0])
+    for _, ini, fim in capture_priority:
+        for raw in lines[ini:fim]:
+            s = raw.strip()
+            if s.startswith(("-", "*", "•")):
+                bullets.append(s.lstrip("-*• ").strip())
+            elif len(s) > 2 and s[0].isdigit() and s[1] in (".", ")"):
+                bullets.append(s[2:].strip())
+        if bullets:
+            break
+
+    if not bullets:
+        for raw in lines:
+            s = raw.strip()
+            if s.startswith(("-", "*", "•")):
+                bullets.append(s.lstrip("-*• ").strip())
+
+    return [b for b in bullets if b][:10]
+
+
+def _format_history_block(history: list[dict]) -> str:
+    """Monta o bloco 'AVISOS ANTERIORES' a ser injetado no prompt."""
+    if not history:
+        return ""
+    lines = [
+        "",
+        "AVISOS ANTERIORES (análises passadas sobre estes mesmos contratos):",
+    ]
+    for h in history:
+        when = h.get("created_at", "")
+        if isinstance(when, str) and len(when) >= 10:
+            when_fmt = when[:10]
+        else:
+            when_fmt = str(when)
+        period = f"{h.get('period_start', '?')} a {h.get('period_end', '?')}"
+        bullets = _extract_checklist(h.get("response_text", "") or "")
+        lines.append(f"\n[{when_fmt} · período analisado: {period}]")
+        if bullets:
+            for b in bullets:
+                lines.append(f"- {b}")
+        else:
+            text = (h.get("response_text") or "").strip().replace("\n", " ")
+            lines.append(f"(sem checklist extraível) {text[:300]}")
+    return "\n".join(lines) + "\n"
+
+
+def fetch_history(contracts: list[str], limit: int = 20) -> list[dict]:
+    """Busca análises anteriores cujos contratos se sobrepõem aos atuais.
+
+    Retorna lista (mais recente primeiro) de dicts com:
+    created_at, period_start, period_end, contracts, response_text.
+    Em caso de erro de conexão, retorna [].
+    """
+    if not contracts:
+        return []
     try:
-        proc = subprocess.run(
-            ["claude", "-p", prompt],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout_sec,
+        client = _supabase()
+        r = (
+            client.table("coach_analyses")
+            .select("created_at,period_start,period_end,contracts,response_text")
+            .overlaps("contracts", contracts)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
         )
-    except subprocess.TimeoutExpired:
-        return {
-            "ok": False,
-            "text": "",
-            "error": f"Timeout após {timeout_sec}s. Tente novamente ou reduza o período filtrado.",
-        }
-    except Exception as e:
-        return {"ok": False, "text": "", "error": f"Falha ao executar claude: {e}"}
+        return r.data or []
+    except Exception:
+        return []
 
-    if proc.returncode != 0:
-        return {
-            "ok": False,
-            "text": proc.stdout or "",
-            "error": (proc.stderr or "").strip() or f"exit code {proc.returncode}",
-        }
-    return {"ok": True, "text": proc.stdout.strip(), "error": None}
+
+def save_analysis(ctx: FilterContext, response_text: str) -> dict:
+    """Insere uma análise da LLM no Supabase. Retorna {ok, error}."""
+    text = (response_text or "").strip()
+    if not text:
+        return {"ok": False, "error": "Texto vazio."}
+    user_id = _current_user_id()
+    if not user_id:
+        return {"ok": False, "error": "Usuário não autenticado."}
+    try:
+        client = _supabase()
+        client.table("coach_analyses").insert(
+            {
+                "user_id": user_id,
+                "period_start": ctx.start.isoformat(),
+                "period_end": ctx.end.isoformat(),
+                "contracts": ctx.contracts,
+                "types": ctx.types,
+                "weekdays": ctx.weekdays,
+                "result_filter": ctx.result_filter,
+                "response_text": text,
+            }
+        ).execute()
+        return {"ok": True, "error": None}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}

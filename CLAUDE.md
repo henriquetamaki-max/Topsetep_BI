@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Pipeline
 
-CSVs de trades exportados do TopStepX → ingestão Python → Supabase Postgres (tabela `public.trades`) → Metabase.
+CSVs de trades exportados do TopStepX → upload pela UI do app (autenticado) → Supabase Postgres (tabela `public.trades`, isolada por `user_id` via RLS) → dashboard Streamlit.
 
-Tudo é orquestrado por um único script (`ingest.py`); não há servidor web, fila ou agendador. A "execução" é o operador rodar o script localmente quando há novos CSVs.
+App é multi-tenant: cada trader faz login (email/senha ou Google via Supabase Auth) e só enxerga os próprios dados. RLS no banco garante o isolamento, não a aplicação.
+
+Existe também o CLI legado `ingest.py` para uso local pelo operador (bypass de RLS via service_role); novos usuários devem ingerir pela aba **Importar CSVs** do app.
 
 ## Comandos
 
@@ -16,40 +18,55 @@ python -m venv .venv
 .venv\Scripts\activate          # Windows (bash: source .venv/Scripts/activate)
 pip install -r requirements.txt
 
-# Rodar a ingestão (lê CSV input/, escreve em Supabase, move para CSV output/)
+# Rodar o app (dashboard + login + upload)
+streamlit run app.py
+
+# (Opcional) Ingestão local via CLI legado — lê CSV input/, atribui ao
+# INGEST_USER_ID configurado no Env, move para CSV output/.
 python ingest.py
 ```
 
-Não há suite de testes, linter configurado ou pipeline de build. O schema do banco vive em `schema.sql` e é aplicado manualmente uma vez no Supabase SQL Editor.
+Schema do banco vive em `PRD/schema.sql` e é aplicado manualmente uma vez no Supabase SQL Editor.
 
 ## Arquitetura
 
-### Fluxo de `ingest.py`
+### Autenticação (`auth.py`)
 
-1. **`load_env()`** — lê `Env/Topstep_bi.env`. Exige `NEXT_PUBLIC_SUPABASE_URL` (ou `SUPABASE_URL`) e `SUPABASE_SERVICE_ROLE_KEY` (a chave anon **não** serve — RLS bloqueia inserts). Em caso de variável faltando o script aborta com mensagem específica.
-2. **`normalize_df()`** — renomeia colunas PascalCase do CSV (`Id`, `ContractName`, `EnteredAt`, ...) para snake_case que casa com `schema.sql`. Datas vêm no formato `MM/DD/YYYY HH:MM:SS ±HH:MM` (formato dos EUA com timezone) e são convertidas para UTC.
-3. **`_duration_to_pg_interval()`** — `TradeDuration` chega em formato .NET `HH:MM:SS.fffffff` (7 casas decimais). Postgres `interval` aceita no máximo microssegundos (6 casas), então a fração é truncada. Se algum CSV futuro vier sem esse formato, a função retorna a string original — isso vai falhar no upsert, o que é o comportamento desejado (não silenciar formato inesperado).
-4. **`upsert_batches()`** — upsert em lotes de `BATCH_SIZE=1000` com `on_conflict="id"`. Reprocessar o mesmo CSV é seguro: duplicatas por `id` (PK) são ignoradas.
-5. **`next_output_name()`** — gera nomes sequenciais `YYYYMMDD_N.csv` para a pasta `CSV output/`. Usa timezone `America/Sao_Paulo` para a data (não UTC), porque o nome reflete o dia da operação do trader, não o dia UTC.
-6. CSVs com erro **permanecem em `CSV input/`** para retry; só os processados com sucesso (ou vazios) são movidos. Exit code 1 se houve qualquer erro.
+- Supabase Auth: email/senha + Google OAuth (PKCE). `login_screen()` bloqueia o app até logar.
+- Sessão em `st.session_state["session"]` (dict). `get_client()` devolve um cliente Supabase com o JWT do usuário injetado — todas as queries respeitam RLS.
+- Credenciais lidas de `st.secrets` (deploy Streamlit Cloud) ou `Env/Topstep_bi.env` (local). Anon key, **nunca** service_role.
 
-### Schema (`schema.sql`)
+### Ingestão
 
-- PK é `id` (bigint vindo do TopStepX) — toda a idempotência do pipeline depende disso.
+- `ingest_core.py` — funções puras: `detect_format`, `normalize_topstepx`, `normalize_dashboard`, `records_for_supabase(df, user_id)`, `upsert_batches`, `ingest_uploaded_csv(file, client, user_id)`.
+- Upload pelo app: aba "Importar CSVs" chama `ingest_uploaded_csv` com o cliente autenticado. `user_id` vem da sessão.
+- `ingest.py` CLI: wrapper fino que lê `CSV input/`, usa service_role + `INGEST_USER_ID` do env, e move arquivos para `CSV output/` como `YYYYMMDD_N.csv`.
+- `_duration_to_pg_interval()` trunca a fração `.fffffff` (.NET, 7 casas) para microssegundos (Postgres `interval` aceita no máximo 6).
+
+### Schema (`PRD/schema.sql`)
+
+- PK de `trades` é **composta** `(user_id, id)` — TopStepX gera `id` sem conhecer multi-tenancy, então a PK composta evita colisão entre usuários distintos.
+- `coach_analyses` e `action_items` também têm `user_id`. As três tabelas têm RLS habilitada com policy `auth.uid() = user_id` (SELECT/INSERT/UPDATE/DELETE).
 - `pnl_net` é coluna **gerada** (`pnl - fees - commissions`) — não tente popular pelo Python.
-- `type` tem CHECK constraint `in ('Long','Short')` — qualquer outro valor no CSV faz o upsert falhar.
-- Índices em `trade_day` e `contract_name` (queries do Metabase tipicamente filtram por esses).
+- `type` tem CHECK constraint `in ('Long','Short')`.
+- Índices: `(user_id, trade_day)`, `(user_id, contract_name)`.
 
 ### Convenções de pastas
 
-- `CSV input/` — inbox de CSVs a processar.
-- `CSV output/` — arquivos já ingeridos, renomeados `YYYYMMDD_N.csv`.
-- `Env/Topstep_bi.env` — segredos (ver regras globais sobre pastas `Env`); nunca commitar.
-- `PRD/` — notas de produto/processo (texto, não código).
-- `Templates/` — referência visual do dashboard alvo.
+- `CSV input/` / `CSV output/` — usados pelo CLI legado. No app hosted, irrelevantes.
+- `Env/Topstep_bi.env` — segredos para uso local (anon key + service_role + INGEST_USER_ID). Nunca commitar.
+- `.streamlit/secrets.toml` — segredos para deploy Streamlit Cloud (gitignored). Exemplo em `secrets.toml.example`.
+- `PRD/` — schema SQL + notas de produto.
+
+## Configuração Supabase (uma vez, no painel)
+
+1. Authentication → Providers → habilitar **Email**.
+2. Authentication → Providers → habilitar **Google**: criar OAuth client no Google Cloud Console (Web Application), redirect URI = `https://<projeto>.supabase.co/auth/v1/callback`, colar `client_id`/`client_secret`.
+3. Authentication → URL Configuration → adicionar em Redirect URLs: `http://localhost:8501` e a URL final do Streamlit Cloud.
 
 ## Notas operacionais
 
-- A coluna `Id` do CSV pode chegar como float se o CSV tiver linha vazia no meio; `astype("int64")` vai falhar antes do upsert — isso é o comportamento desejado.
-- A `service_role` key bypassa RLS — não use ela em nenhum contexto que não seja este script local.
-- Não rode `ingest.py` em paralelo: `next_output_name()` faz um scan-then-write sem lock e duas instâncias podem colidir no nome.
+- A coluna `Id` do CSV pode chegar como float se o CSV tiver linha vazia; `astype("int64")` falha antes do upsert — comportamento desejado.
+- `service_role` bypassa RLS — só use no `ingest.py` local; **nunca** em `secrets.toml`/Streamlit Cloud.
+- `load_trades(user_id)` em `app.py` usa `user_id` como chave de cache: previne vazamento entre usuários no mesmo processo Streamlit.
+- Não rode `ingest.py` em paralelo: `next_output_name()` não tem lock.
