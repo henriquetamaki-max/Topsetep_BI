@@ -284,5 +284,50 @@
   "billing.past_due": "Your last payment failed. Please update your card in the Account tab to keep your subscription active.",
 
   "paywall.import.blocked": "CSV import is not available on your current plan.",
-  "paywall.import.cta": "Subscribe to Basic or Pro in the Account tab to upload new trades. Your existing data is preserved."
+  "paywall.import.cta": "Subscribe to Basic or Pro in the Account tab to upload new trades. Your existing data is preserved.",
+
+  "tab.account": "Account",
+  "account.title": "Account & billing",
+  "account.caption": "Your current plan, trial status and subscription management.",
+  "account.current_plan": "Current plan",
+  "account.status": "Status",
+  "account.trial_ends": "Trial ends in",
+  "account.days_left": "{n} day(s)",
+  "account.renews_on": "Renews on",
+  "account.upgrade_section": "Choose a plan",
+  "account.manage_section": "Manage subscription",
+  "account.manage_caption": "Update payment method, change plan, view invoices or cancel — all on Stripe's secure portal.",
+
+  "billing.not_configured": "Stripe is not configured on this deployment. Subscriptions are temporarily unavailable.",
+  "billing.per_month": "month",
+  "billing.current_plan": "Your current plan",
+  "billing.upgrade_to": "Upgrade to {plan}",
+  "billing.manage_subscription": "Manage subscription",
+  "billing.cancel_scheduled": "Your subscription is scheduled to cancel on {date}. Until then you keep full access.",
+
+  "billing.plan.trial.name": "Trial",
+  "billing.plan.free.name": "Free",
+  "billing.plan.basic.name": "Basic",
+  "billing.plan.basic.tagline": "For casual traders. 100 imports per billing cycle.",
+  "billing.plan.pro.name": "Pro",
+  "billing.plan.pro.tagline": "For active traders. Unlimited imports.",
+  "billing.plan.imports_per_cycle": "Up to {n} trades imported per billing cycle",
+  "billing.plan.unlimited_imports": "Unlimited trade imports",
+  "billing.plan.feature.coach": "AI coach analysis",
+  "billing.plan.feature.full_dashboard": "Full dashboard history",
+
+  "billing.status.trialing": "Trial",
+  "billing.status.active":   "Active",
+  "billing.status.past_due": "Past due",
+  "billing.status.canceled": "Canceled",
+  "billing.status.free":     "Free",
+
+  "billing.checkout.continue": "Continue to checkout",
+  "billing.checkout.success":  "Payment received. Your subscription will activate within a few seconds.",
+  "billing.checkout.webhook_note": "If you don't see the new plan within ~30 seconds, click Reload in the sidebar.",
+  "billing.checkout.canceled": "Checkout canceled. You can resume any time from this page.",
+  "billing.checkout.error":    "Could not start checkout: {err}",
+
+  "billing.portal.continue": "Open subscription portal",
+  "billing.portal.error":    "Could not open the subscription portal: {err}"
 }

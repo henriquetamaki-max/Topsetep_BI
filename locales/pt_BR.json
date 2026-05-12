@@ -284,5 +284,50 @@
   "billing.past_due": "Seu último pagamento falhou. Atualize seu cartão na aba Conta para manter a assinatura ativa.",
 
   "paywall.import.blocked": "A importação de CSVs não está disponível no seu plano atual.",
-  "paywall.import.cta": "Assine o Basic ou Pro na aba Conta para enviar novos trades. Seus dados existentes estão preservados."
+  "paywall.import.cta": "Assine o Basic ou Pro na aba Conta para enviar novos trades. Seus dados existentes estão preservados.",
+
+  "tab.account": "Conta",
+  "account.title": "Conta e cobrança",
+  "account.caption": "Seu plano atual, status do trial e gerenciamento da assinatura.",
+  "account.current_plan": "Plano atual",
+  "account.status": "Status",
+  "account.trial_ends": "Trial termina em",
+  "account.days_left": "{n} dia(s)",
+  "account.renews_on": "Renova em",
+  "account.upgrade_section": "Escolha um plano",
+  "account.manage_section": "Gerenciar assinatura",
+  "account.manage_caption": "Atualize cartão, troque de plano, veja faturas ou cancele — tudo pelo portal seguro do Stripe.",
+
+  "billing.not_configured": "O Stripe não está configurado nesta instalação. Assinaturas temporariamente indisponíveis.",
+  "billing.per_month": "mês",
+  "billing.current_plan": "Seu plano atual",
+  "billing.upgrade_to": "Assinar {plan}",
+  "billing.manage_subscription": "Gerenciar assinatura",
+  "billing.cancel_scheduled": "Sua assinatura será cancelada em {date}. Até lá você mantém acesso completo.",
+
+  "billing.plan.trial.name": "Trial",
+  "billing.plan.free.name": "Free",
+  "billing.plan.basic.name": "Basic",
+  "billing.plan.basic.tagline": "Para traders casuais. 100 importações por ciclo de cobrança.",
+  "billing.plan.pro.name": "Pro",
+  "billing.plan.pro.tagline": "Para traders ativos. Importações ilimitadas.",
+  "billing.plan.imports_per_cycle": "Até {n} trades importados por ciclo de cobrança",
+  "billing.plan.unlimited_imports": "Importações de trades ilimitadas",
+  "billing.plan.feature.coach": "Análise do Coach AI",
+  "billing.plan.feature.full_dashboard": "Histórico completo no dashboard",
+
+  "billing.status.trialing": "Trial",
+  "billing.status.active":   "Ativa",
+  "billing.status.past_due": "Pagamento atrasado",
+  "billing.status.canceled": "Cancelada",
+  "billing.status.free":     "Free",
+
+  "billing.checkout.continue": "Continuar para o checkout",
+  "billing.checkout.success":  "Pagamento recebido. Sua assinatura será ativada em alguns segundos.",
+  "billing.checkout.webhook_note": "Se o novo plano não aparecer em ~30 segundos, clique em Recarregar na barra lateral.",
+  "billing.checkout.canceled": "Checkout cancelado. Você pode retomar a qualquer momento por esta página.",
+  "billing.checkout.error":    "Não foi possível iniciar o checkout: {err}",
+
+  "billing.portal.continue": "Abrir portal da assinatura",
+  "billing.portal.error":    "Não foi possível abrir o portal da assinatura: {err}"
 }

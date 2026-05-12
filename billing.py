@@ -24,6 +24,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+import stripe
 import streamlit as st
 
 
@@ -168,3 +169,120 @@ def render_trial_banner(plan: dict[str, Any] | None) -> None:
     if status == "past_due":
         st.error(t("billing.past_due"), icon="💳")
         return
+
+
+# ---------------------------------------------------------------------------
+# Stripe Checkout / Customer Portal
+# ---------------------------------------------------------------------------
+
+
+def _stripe_secret() -> str | None:
+    """Lê a chave secreta do Stripe via auth._read_secret (cache_resource-safe)."""
+    import auth  # noqa: PLC0415
+    return auth._read_secret("STRIPE_SECRET_KEY")
+
+
+def _app_base_url() -> str:
+    """URL base usada nos success/cancel URLs do Checkout."""
+    import auth  # noqa: PLC0415
+    return auth._read_secret("APP_BASE_URL", "APP_URL") or "http://localhost:8501"
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def stripe_price_id(plan_slug: str) -> str | None:
+    """Resolve o Stripe Price ID para um plano pago.
+
+    Fonte de verdade: secrets STRIPE_PRICE_BASIC / STRIPE_PRICE_PRO. Trial e
+    free não têm preço (retornam None)."""
+    import auth  # noqa: PLC0415
+    if plan_slug == "basic":
+        return auth._read_secret("STRIPE_PRICE_BASIC")
+    if plan_slug == "pro":
+        return auth._read_secret("STRIPE_PRICE_PRO")
+    return None
+
+
+def _init_stripe() -> bool:
+    """Configura stripe.api_key. Retorna False se a chave não estiver disponível."""
+    key = _stripe_secret()
+    if not key:
+        return False
+    stripe.api_key = key
+    return True
+
+
+def create_checkout_session(
+    user_id: str,
+    email: str | None,
+    plan_slug: str,
+    existing_customer_id: str | None = None,
+) -> tuple[str | None, str | None]:
+    """Cria uma Stripe Checkout Session de assinatura e retorna a URL.
+
+    Retorna `(url, err)`. Em caso de sucesso, `err` é None.
+
+    Comportamento:
+    - Modo `subscription` com 1 item recorrente (price_id do plano).
+    - `metadata.user_id` no Session E na Subscription (via
+      `subscription_data.metadata`) — essencial para o webhook ligar a
+      assinatura ao usuário Supabase.
+    - Se `existing_customer_id` for fornecido, reusa o Customer (evita
+      duplicar customers no Stripe entre upgrades).
+    - success/cancel URLs voltam para a aba Account.
+    """
+    if not _init_stripe():
+        return None, "stripe_secret_missing"
+
+    price_id = stripe_price_id(plan_slug)
+    if not price_id:
+        return None, "price_id_missing"
+
+    base = _app_base_url().rstrip("/")
+    metadata = {"user_id": user_id, "plan_slug": plan_slug}
+
+    params: dict[str, Any] = {
+        "mode": "subscription",
+        "line_items": [{"price": price_id, "quantity": 1}],
+        "metadata": metadata,
+        "subscription_data": {"metadata": metadata},
+        "success_url": f"{base}/?checkout=success&session_id={{CHECKOUT_SESSION_ID}}",
+        "cancel_url": f"{base}/?checkout=cancel",
+        "allow_promotion_codes": True,
+        "billing_address_collection": "auto",
+    }
+    if existing_customer_id:
+        params["customer"] = existing_customer_id
+    elif email:
+        params["customer_email"] = email
+
+    try:
+        session = stripe.checkout.Session.create(**params)
+        return session.url, None
+    except Exception as e:
+        return None, str(e)
+
+
+def create_portal_session(stripe_customer_id: str) -> tuple[str | None, str | None]:
+    """Cria uma Stripe Customer Portal Session e retorna a URL.
+
+    Retorna `(url, err)`."""
+    if not _init_stripe():
+        return None, "stripe_secret_missing"
+    if not stripe_customer_id:
+        return None, "no_customer"
+
+    base = _app_base_url().rstrip("/")
+    try:
+        portal = stripe.billing_portal.Session.create(
+            customer=stripe_customer_id,
+            return_url=f"{base}/?portal=return",
+        )
+        return portal.url, None
+    except Exception as e:
+        return None, str(e)
+
+
+def stripe_configured() -> bool:
+    """True se a secret key do Stripe está disponível (para esconder
+    botões de upgrade quando o app está mal configurado)."""
+    return bool(_stripe_secret())
