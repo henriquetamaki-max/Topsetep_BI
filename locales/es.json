@@ -1,6 +1,6 @@
 {
   "app.title": "X-Metrics",
-  "app.footer": "Soporte, feedback o bugs: [henrique.tamaki@gmail.com](mailto:henrique.tamaki@gmail.com)",
+  "app.footer": "Soporte, feedback o bugs: <a href='mailto:xmetrics.contact@gmail.com' style='color:inherit;'>xmetrics.contact@gmail.com</a>",
   "app.caption_logged": "Panel de operaciones — sesión iniciada como **{email}**.",
   "app.empty_no_trades": "Aún no hay operaciones en tu perfil. Sube los CSVs exportados de TopStepX abajo para poblar el panel.",
   "app.empty_filtered": "Ninguna operación coincide con los filtros actuales.",

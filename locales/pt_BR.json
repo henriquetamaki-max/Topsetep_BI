@@ -1,6 +1,6 @@
 {
   "app.title": "X-Metrics",
-  "app.footer": "Suporte, feedback ou bugs: [henrique.tamaki@gmail.com](mailto:henrique.tamaki@gmail.com)",
+  "app.footer": "Suporte, feedback ou bugs: <a href='mailto:xmetrics.contact@gmail.com' style='color:inherit;'>xmetrics.contact@gmail.com</a>",
   "app.caption_logged": "Dashboard de trades — logado como **{email}**.",
   "app.empty_no_trades": "Nenhum trade no seu perfil ainda. Suba os CSVs exportados do TopStepX abaixo para popular o dashboard.",
   "app.empty_filtered": "Nenhum trade encontrado com os filtros atuais.",
