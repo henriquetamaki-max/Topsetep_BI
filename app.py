@@ -49,7 +49,7 @@ PLOTLY_LAYOUT = dict(
 )
 
 st.set_page_config(
-    page_title="BI TopStep",
+    page_title="X-Metrics",
     page_icon=":chart_with_upwards_trend:",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -1113,11 +1113,29 @@ def render_action_plan() -> None:
 def render_import(user_id: str) -> None:
     st.subheader(t("import.subheader"))
     st.caption(t("import.caption"))
+
+    # A key do uploader rotaciona via contador para "esvaziar" a caixa após
+    # uma importação. O Streamlit não permite escrever em
+    # st.session_state["csv_uploader"] depois do widget instanciado, então o
+    # único jeito de resetar é forçar um widget novo (key diferente).
+    uploader_seq = st.session_state.get("csv_uploader_seq", 0)
+    uploader_key = f"csv_uploader_{uploader_seq}"
+
+    # Resultado da importação anterior (setado no rerun após sucesso).
+    last_result = st.session_state.pop("csv_import_last_result", None)
+    if last_result:
+        st.success(t("import.done", n=last_result["total"]))
+        st.dataframe(
+            pd.DataFrame(last_result["rows_log"]),
+            use_container_width=True,
+            hide_index=True,
+        )
+
     files = st.file_uploader(
         t("import.uploader"),
         type="csv",
         accept_multiple_files=True,
-        key="csv_uploader",
+        key=uploader_key,
     )
     col_btn, _ = st.columns([1, 3])
     if files and col_btn.button(t("import.btn"), type="primary", use_container_width=True):
@@ -1136,10 +1154,13 @@ def render_import(user_id: str) -> None:
                         t("import.col.status"): err or "ok",
                     }
                 )
-        st.success(t("import.done", n=total))
-        st.dataframe(pd.DataFrame(rows_log), use_container_width=True, hide_index=True)
         # Invalida o cache para o próximo load_trades pegar os novos trades.
         load_trades.clear()
+        # Rotaciona a key do uploader e dispara rerun: a caixa volta vazia
+        # e o resumo aparece no topo via csv_import_last_result.
+        st.session_state["csv_import_last_result"] = {"total": total, "rows_log": rows_log}
+        st.session_state["csv_uploader_seq"] = uploader_seq + 1
+        st.rerun()
 
 
 # ----------------------------- App -------------------------------------------
@@ -1343,3 +1364,12 @@ with tab_plan:
 
 with tab_import:
     render_import(_user["id"])
+
+# --- Rodapé ------------------------------------------------------------------
+
+st.markdown(
+    f"<div style='text-align:center; color:{MUTED}; font-size:0.8rem; "
+    f"margin-top:2rem; padding-top:1rem; border-top:1px solid {GREY};'>"
+    f"{t('app.footer')}</div>",
+    unsafe_allow_html=True,
+)
