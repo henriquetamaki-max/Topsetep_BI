@@ -307,6 +307,7 @@
 
   "billing.plan.trial.name": "Trial",
   "billing.plan.free.name": "Free",
+  "billing.plan.admin.name": "Administrador",
   "billing.plan.basic.name": "Basic",
   "billing.plan.basic.tagline": "Para traders casuais. 100 importações por ciclo de cobrança.",
   "billing.plan.pro.name": "Pro",

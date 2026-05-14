@@ -148,6 +148,9 @@ def render_trial_banner(plan: dict[str, Any] | None) -> None:
     if not plan:
         return
 
+    if plan.get("plan_slug") == "admin":
+        return
+
     from i18n import t  # noqa: PLC0415
 
     status = plan.get("status")

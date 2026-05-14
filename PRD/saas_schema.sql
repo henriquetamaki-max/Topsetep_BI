@@ -24,7 +24,7 @@ create policy plans_read_all on public.plans
     for select
     using (true);
 
--- Seed dos 4 planos. ON CONFLICT garante idempotência.
+-- Seed dos 4 planos públicos. ON CONFLICT garante idempotência.
 insert into public.plans (slug, name, stripe_price_id, monthly_trade_limit, price_cents, currency, features, sort_order)
 values
     ('trial', '14-day Trial', null, null, 0, 'USD',
@@ -35,6 +35,15 @@ values
         '{"import": true,  "coach": true,  "dashboard": "full"}'::jsonb, 2),
     ('pro',   'Pro',   null, null, 4900, 'USD',
         '{"import": true,  "coach": true,  "dashboard": "full"}'::jsonb, 3)
+on conflict (slug) do nothing;
+
+-- Plano interno do gestor da plataforma. `is_public=false` esconde do grid
+-- de upgrade na aba Account. Atribuído via override em current_user_plan()
+-- quando o usuário corrente está em public.admin_users (ver seção 4).
+insert into public.plans (slug, name, stripe_price_id, monthly_trade_limit, price_cents, currency, features, is_public, sort_order)
+values
+    ('admin', 'Administrator', null, null, 0, 'USD',
+        '{"import": true, "coach": true, "dashboard": "full"}'::jsonb, false, 99)
 on conflict (slug) do nothing;
 
 
@@ -126,14 +135,21 @@ language sql stable security invoker as $$
     with s as (
         select * from public.subscriptions where user_id = p_user
     ),
+    is_admin as (
+        select exists (select 1 from public.admin_users a where a.user_id = p_user) as v
+    ),
     eff as (
+        -- LEFT JOIN com is_admin garante 1 linha mesmo se `s` estiver vazio
+        -- (usuário sem subscriptions), permitindo detectar admin sem trial.
         select
             case
+                when ia.v                                              then 'admin'
                 when s.status = 'trialing' and s.trial_ends_at < now() then 'free'
                 when s.status = 'canceled'                              then 'free'
                 else s.plan_slug
             end as plan_slug,
             case
+                when ia.v                                              then 'active'::public.subscription_status
                 when s.status = 'trialing' and s.trial_ends_at < now() then 'free'::public.subscription_status
                 when s.status = 'canceled'                              then 'free'::public.subscription_status
                 else s.status
@@ -141,7 +157,8 @@ language sql stable security invoker as $$
             s.current_period_start,
             s.current_period_end,
             s.trial_ends_at
-        from s
+        from is_admin ia
+        left join s on true
     )
     select
         e.plan_slug,
@@ -193,9 +210,10 @@ create policy admin_users_select_own on public.admin_users
     for select
     using (auth.uid() = user_id);
 
--- Seed manual após signup do admin fundador (rodar 1x no SQL editor):
+-- Seed manual após signup do gestor da plataforma (rodar 1x no SQL editor).
+-- Substituir pelo email do gestor:
 --   insert into public.admin_users (user_id)
---   select id from auth.users where email = 'henrique.tamaki@audaces.com'
+--   select id from auth.users where email = 'henrique.tamaki@gmail.com'
 --   on conflict do nothing;
 
 -- Helper para checar admin em qualquer RPC SECURITY DEFINER
@@ -313,7 +331,9 @@ end $$;
 -- - Trial inicia em auth.users.created_at + 14 dias (trigger).
 -- - Expiração de trial é resolvida em tempo de leitura por current_user_plan(),
 --   sem necessidade de cron.
--- - Para semear o admin fundador, rodar manualmente após o signup:
+-- - Para semear o gestor da plataforma, rodar manualmente após o signup:
 --     insert into public.admin_users (user_id)
---     select id from auth.users where email = 'henrique.tamaki@audaces.com'
+--     select id from auth.users where email = 'henrique.tamaki@gmail.com'
 --     on conflict do nothing;
+--   current_user_plan() detecta a presença em admin_users e devolve o plano
+--   'admin' com status 'active' — bypassa trial e libera todas as features.

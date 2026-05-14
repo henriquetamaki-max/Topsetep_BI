@@ -205,6 +205,14 @@ def render_account_tab(user: dict, plan: dict | None) -> None:
     status = (plan or {}).get("status") or sub.get("status")
     customer_id = sub.get("stripe_customer_id")
 
+    # Gestor da plataforma: sem trial, sem cobrança, sem upgrade/portal.
+    if effective_slug == "admin":
+        col1, col2, col3 = st.columns(3)
+        col1.metric(t("account.current_plan"), t("billing.plan.admin.name"))
+        col2.metric(t("account.status"), _status_label("active"))
+        col3.metric(t("account.renews_on"), "—")
+        return
+
     # --- Resumo atual --------------------------------------------------------
     col1, col2, col3 = st.columns(3)
     col1.metric(t("account.current_plan"), t(f"billing.plan.{effective_slug}.name"))
