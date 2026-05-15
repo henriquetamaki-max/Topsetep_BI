@@ -13,3 +13,7 @@ CSV output/*.csv
 # Projeto de referência (TradePontos) - foi consultado para extrair fórmulas
 # para metrics.py; não faz parte do código deste repo e contém node_modules pesado.
 Templates/TradePontos/
+
+# Artefatos de teste Playwright (capturas, logs, snapshots) — não vão pro repo.
+.playwright-mcp/
+*.png
