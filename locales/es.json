@@ -284,5 +284,51 @@
   "billing.past_due": "Tu último pago falló. Actualiza tu tarjeta en la pestaña Cuenta para mantener la suscripción activa.",
 
   "paywall.import.blocked": "La importación de CSVs no está disponible en tu plan actual.",
-  "paywall.import.cta": "Suscríbete a Basic o Pro en la pestaña Cuenta para subir nuevos trades. Tus datos existentes están preservados."
+  "paywall.import.cta": "Suscríbete a Basic o Pro en la pestaña Cuenta para subir nuevos trades. Tus datos existentes están preservados.",
+
+  "tab.account": "Cuenta",
+  "account.title": "Cuenta y facturación",
+  "account.caption": "Tu plan actual, estado del trial y gestión de la suscripción.",
+  "account.current_plan": "Plan actual",
+  "account.status": "Estado",
+  "account.trial_ends": "Trial termina en",
+  "account.days_left": "{n} día(s)",
+  "account.renews_on": "Renueva el",
+  "account.upgrade_section": "Elige un plan",
+  "account.manage_section": "Gestionar suscripción",
+  "account.manage_caption": "Actualiza tu tarjeta, cambia de plan, mira facturas o cancela — todo en el portal seguro de Stripe.",
+
+  "billing.not_configured": "Stripe no está configurado en esta instalación. Suscripciones temporalmente no disponibles.",
+  "billing.per_month": "mes",
+  "billing.current_plan": "Tu plan actual",
+  "billing.upgrade_to": "Suscribirse a {plan}",
+  "billing.manage_subscription": "Gestionar suscripción",
+  "billing.cancel_scheduled": "Tu suscripción se cancelará el {date}. Hasta entonces mantienes acceso completo.",
+
+  "billing.plan.trial.name": "Trial",
+  "billing.plan.free.name": "Free",
+  "billing.plan.admin.name": "Administrador",
+  "billing.plan.basic.name": "Basic",
+  "billing.plan.basic.tagline": "Para traders casuales. 100 importaciones por ciclo de facturación.",
+  "billing.plan.pro.name": "Pro",
+  "billing.plan.pro.tagline": "Para traders activos. Importaciones ilimitadas.",
+  "billing.plan.imports_per_cycle": "Hasta {n} trades importados por ciclo de facturación",
+  "billing.plan.unlimited_imports": "Importaciones de trades ilimitadas",
+  "billing.plan.feature.coach": "Análisis del Coach AI",
+  "billing.plan.feature.full_dashboard": "Histórico completo del dashboard",
+
+  "billing.status.trialing": "Trial",
+  "billing.status.active":   "Activa",
+  "billing.status.past_due": "Pago atrasado",
+  "billing.status.canceled": "Cancelada",
+  "billing.status.free":     "Free",
+
+  "billing.checkout.continue": "Continuar al checkout",
+  "billing.checkout.success":  "Pago recibido. Tu suscripción se activará en unos segundos.",
+  "billing.checkout.webhook_note": "Si el nuevo plan no aparece en ~30 segundos, haz clic en Recargar en la barra lateral.",
+  "billing.checkout.canceled": "Checkout cancelado. Puedes retomarlo cuando quieras desde esta página.",
+  "billing.checkout.error":    "No se pudo iniciar el checkout: {err}",
+
+  "billing.portal.continue": "Abrir portal de la suscripción",
+  "billing.portal.error":    "No se pudo abrir el portal de la suscripción: {err}"
 }

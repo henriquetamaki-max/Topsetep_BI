@@ -19,6 +19,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import account
 import action_plan
 import auth
 import billing
@@ -1196,10 +1197,18 @@ st.caption(t("app.caption_logged", email=_user.get('email') or _user['id']))
 
 billing.render_trial_banner(_plan)
 
-# Sem trades ainda: pula filtros e mostra só a aba de upload.
+# Feedback do Stripe Checkout (success/cancel) — fora das abas para que
+# o usuário veja a confirmação mesmo voltando para a aba Dashboard.
+account.handle_checkout_return()
+
+# Sem trades ainda: pula filtros, mas ainda mostra Import e Account.
 if df_all.empty:
     st.warning(t("app.empty_no_trades"))
-    render_import(_user["id"])
+    _tab_imp, _tab_acc = st.tabs([t("tab.import"), t("tab.account")])
+    with _tab_imp:
+        render_import(_user["id"])
+    with _tab_acc:
+        account.render_account_tab(_user, _plan)
     st.stop()
 
 # --- Sidebar: filtros (cross-filter) -----------------------------------------
@@ -1357,8 +1366,9 @@ overview = metrics.compute_overview(df_with_groups)
 
 # --- Abas --------------------------------------------------------------------
 
-tab_dash, tab_coach, tab_plan, tab_import = st.tabs(
-    [t("tab.dashboard"), t("tab.coach"), t("tab.plan"), t("tab.import")]
+tab_dash, tab_coach, tab_plan, tab_import, tab_account = st.tabs(
+    [t("tab.dashboard"), t("tab.coach"), t("tab.plan"),
+     t("tab.import"), t("tab.account")]
 )
 
 with tab_dash:
@@ -1380,6 +1390,9 @@ with tab_plan:
 
 with tab_import:
     render_import(_user["id"])
+
+with tab_account:
+    account.render_account_tab(_user, _plan)
 
 # --- Rodapé ------------------------------------------------------------------
 
