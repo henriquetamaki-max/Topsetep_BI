@@ -24,7 +24,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-import stripe
 import streamlit as st
 
 
@@ -205,13 +204,17 @@ def stripe_price_id(plan_slug: str) -> str | None:
     return None
 
 
-def _init_stripe() -> bool:
-    """Configura stripe.api_key. Retorna False se a chave não estiver disponível."""
+def _init_stripe():
+    """Configura stripe.api_key e devolve o módulo stripe (ou None se não houver chave).
+
+    Import tardio: stripe é pesado (~centenas de ms no boot) e só é usado
+    quando o usuário entra na aba Account e clica em upgrade/portal."""
     key = _stripe_secret()
     if not key:
-        return False
+        return None
+    import stripe  # noqa: PLC0415
     stripe.api_key = key
-    return True
+    return stripe
 
 
 def create_checkout_session(
@@ -233,7 +236,8 @@ def create_checkout_session(
       duplicar customers no Stripe entre upgrades).
     - success/cancel URLs voltam para a aba Account.
     """
-    if not _init_stripe():
+    stripe = _init_stripe()
+    if stripe is None:
         return None, "stripe_secret_missing"
 
     price_id = stripe_price_id(plan_slug)
@@ -269,7 +273,8 @@ def create_portal_session(stripe_customer_id: str) -> tuple[str | None, str | No
     """Cria uma Stripe Customer Portal Session e retorna a URL.
 
     Retorna `(url, err)`."""
-    if not _init_stripe():
+    stripe = _init_stripe()
+    if stripe is None:
         return None, "stripe_secret_missing"
     if not stripe_customer_id:
         return None, "no_customer"
