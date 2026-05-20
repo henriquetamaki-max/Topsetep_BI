@@ -10,6 +10,8 @@ logs/
 CSV output/*.csv
 !CSV output/.gitkeep
 
+CSV input/*.csv
+
 # Projeto de referência (TradePontos) - foi consultado para extrair fórmulas
 # para metrics.py; não faz parte do código deste repo e contém node_modules pesado.
 Templates/TradePontos/
