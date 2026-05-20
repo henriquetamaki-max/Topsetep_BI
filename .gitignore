@@ -19,3 +19,6 @@ Templates/TradePontos/
 # Artefatos de teste Playwright (capturas, logs, snapshots) — não vão pro repo.
 .playwright-mcp/
 *.png
+
+# Zips empacotados da extensão Chrome — gerados por scripts/package_extension.py.
+dist/

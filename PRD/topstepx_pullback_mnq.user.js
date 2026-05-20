@@ -130,15 +130,22 @@
     try { return CHART_PATH_REGEX.test(location.pathname); } catch (_) { return false; }
   }
 
+  // Único sinal-base obrigatório: getCustomIndicators. Sinais extras são bônus
+  // (logamos quais existem no primeiro patch para futura calibração).
   function looksLikeWidgetCfg(obj) {
-    if (!obj || typeof obj.getCustomIndicators !== 'function') return false;
-    return (
-      typeof obj.chart      === 'function' ||
-      typeof obj.subscribe  === 'function' ||
-      typeof obj.setSymbol  === 'function' ||
-      obj._options          != null         ||
-      obj._innerAPI         != null
-    );
+    if (!obj) return false;
+    try { return typeof obj.getCustomIndicators === 'function'; }
+    catch (_) { return false; }
+  }
+
+  function describeCfgShape(obj) {
+    const probes = ['chart', 'subscribe', 'setSymbol', '_options', '_innerAPI',
+                    'activeChart', 'symbolInterval', 'onChartReady', 'addCustomIndicator'];
+    const found = [];
+    for (let i = 0; i < probes.length; i++) {
+      try { if (obj[probes[i]] != null) found.push(probes[i]); } catch (_) {}
+    }
+    return found;
   }
 
   function findWidgetConfig() {
@@ -180,7 +187,8 @@
       });
     cfg.__pullbackMNQPatched = true;
     __patchedCfg = cfg;
-    INFO(`custom indicator injetado v${INDICATOR_VERSION}`);
+    const shape = describeCfgShape(cfg);
+    INFO(`custom indicator injetado v${INDICATOR_VERSION} (cfg shape: ${shape.length ? shape.join(', ') : 'só getCustomIndicators'})`);
   }
 
   function stopScan() {

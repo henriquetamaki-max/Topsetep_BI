@@ -20,20 +20,58 @@ from coach_ai import _current_user_id, _supabase
 
 TABLE = "daily_plans"
 
-# Valor monetário de 1 ponto, por contrato, em USD. Usado pela UI para
-# calcular Stop ($) e Alvo ($) a partir de stop_points / target_points
-# × max_size. Foco inicial: MNQ. Outros contratos virão em iterações
-# futuras conforme a fusão avança.
-POINT_VALUE_USD: dict[str, float] = {
-    "MNQ": 2.0,  # Micro E-mini Nasdaq-100: US$ 2,00 por ponto por contrato
+# Fallback estático para o caso de a tabela `public.contracts` ainda não ter
+# sido aplicada (ambientes pré-M6 da fusão). Em produção, a fonte da verdade
+# é a tabela `public.contracts` — ver _load_contract_values().
+_POINT_VALUE_FALLBACK: dict[str, float] = {
+    "MNQ": 2.0,
 }
+
+# Cache em memória, populado por _load_contract_values() (TTL 1h). Não usar
+# diretamente — sempre acessar via point_value_usd().
+_CONTRACTS_CACHE: dict[str, float] | None = None
+
+
+def _load_contract_values() -> dict[str, float]:
+    """Lê `public.contracts` e devolve dict {symbol: point_value_usd}.
+
+    Falha silenciosa: se a tabela não existir (ambiente pré-M6) ou o cliente
+    Supabase estiver indisponível, devolve o fallback estático para não
+    quebrar a UI de Day Plan.
+    """
+    try:
+        client = _supabase()
+        r = client.table("contracts").select("symbol, point_value_usd").execute()
+        rows = r.data or []
+        if not rows:
+            return dict(_POINT_VALUE_FALLBACK)
+        return {
+            str(row["symbol"]).strip().upper(): float(row["point_value_usd"])
+            for row in rows
+            if row.get("symbol") and row.get("point_value_usd") is not None
+        }
+    except Exception:
+        return dict(_POINT_VALUE_FALLBACK)
+
+
+def _contracts() -> dict[str, float]:
+    global _CONTRACTS_CACHE
+    if _CONTRACTS_CACHE is None:
+        _CONTRACTS_CACHE = _load_contract_values()
+    return _CONTRACTS_CACHE
+
+
+def invalidate_contracts_cache() -> None:
+    """Limpa o cache. Chamar após mudança no catálogo (raro)."""
+    global _CONTRACTS_CACHE
+    _CONTRACTS_CACHE = None
 
 
 def point_value_usd(contract_name: str | None) -> float | None:
     """Valor do ponto em USD para um contrato. None se contrato desconhecido."""
     if not contract_name:
         return None
-    return POINT_VALUE_USD.get(str(contract_name).strip().upper())
+    return _contracts().get(str(contract_name).strip().upper())
 
 
 def compute_usd(

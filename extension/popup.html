@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>BI TopStep — Live Monitor</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>BI TopStep — Live Monitor</h1>
+    <span id="version" class="muted"></span>
+  </header>
+
+  <section class="card">
+    <label for="jwt">Supabase JWT</label>
+    <textarea id="jwt" rows="3" placeholder="Paste your JWT from BI TopStep → Account → Extension"></textarea>
+    <div class="row">
+      <button id="save" class="primary">Save token</button>
+      <button id="ping">Test connection</button>
+    </div>
+    <p id="userline" class="muted small"></p>
+  </section>
+
+  <section class="card">
+    <h2>Status</h2>
+    <p id="config-status" class="small"></p>
+    <p id="scrape-status" class="small"></p>
+    <p id="last-status" class="small"></p>
+  </section>
+
+  <footer>
+    <p class="muted small">Open <a href="https://topstepx.com/trade" target="_blank">topstepx.com/trade</a> to start sending snapshots.</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

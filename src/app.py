@@ -27,7 +27,10 @@ import coach_ai
 import daily_plan
 import i18n
 import ingest_core
+import live as live_tab
 import metrics
+import settings as user_settings
+import timezones
 from i18n import t
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -158,8 +161,14 @@ def load_trades(user_id: str) -> pd.DataFrame:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
     df["size"] = pd.to_numeric(df["size"], errors="coerce").astype("Int64")
-    df["entry_hour"] = df["entered_at"].dt.tz_convert("America/Sao_Paulo").dt.hour
-    df["weekday"] = pd.to_datetime(df["trade_day"]).dt.day_name()
+    df["entry_hour"] = df["entered_at"].dt.tz_convert(timezones.user_tz()).dt.hour
+    # trade_day_et: trade_day derivado em fuso primario (ET). KPIs e graficos
+    # do Dashboard usam esta coluna; o filtro da sidebar continua em trade_day
+    # original (vindo do CSV TopStepX, em CT) para preservar UX dos atalhos.
+    df["trade_day_et"] = (
+        df["entered_at"].dt.tz_convert(timezones.PRIMARY_TZ).dt.date
+    )
+    df["weekday"] = pd.to_datetime(df["trade_day_et"]).dt.day_name()
     if "points" not in df.columns:
         # fallback caso o ALTER TABLE ainda não tenha rodado
         df["points"] = df.apply(
@@ -245,6 +254,7 @@ def render_dashboard(
     segments: dict,
     daily: pd.DataFrame,
     overview: dict,
+    adherence: dict,
 ) -> None:
     # --- KPIs em $ (linha 1) -------------------------------------------------
     total_pnl = overview["total_pnl_net"]
@@ -297,7 +307,7 @@ def render_dashboard(
     def _trade_card(title: str, trade: dict | None, accent: str) -> str:
         if not trade:
             return f"<div class='segment-box'><h4 style='color:{accent}'>{title}</h4><p>—</p></div>"
-        entered = pd.to_datetime(trade["entered_at"]).tz_convert("America/Sao_Paulo")
+        entered_dual = timezones.fmt_dual(pd.to_datetime(trade["entered_at"]))
         return f"""
         <div class="segment-box">
             <h4 style="color:{accent}">{title}</h4>
@@ -307,7 +317,7 @@ def render_dashboard(
             <div class="segment-row"><span>{t('dash.card.qty')}</span><span>{trade['size']}</span></div>
             <div class="segment-row"><span>{t('dash.card.entry_at')}</span><span>{trade['entry_price']:,.2f}</span></div>
             <div class="segment-row"><span>{t('dash.card.exit_at')}</span><span>{trade['exit_price']:,.2f}</span></div>
-            <div class="segment-row"><span>{t('dash.card.date')}</span><span>{entered.strftime('%d/%m %H:%M')}</span></div>
+            <div class="segment-row"><span>{t('dash.card.date')}</span><span>{entered_dual}</span></div>
         </div>
         """
 
@@ -690,13 +700,92 @@ def render_dashboard(
             )
             st.dataframe(g_show, use_container_width=True, hide_index=True, height=280)
 
+    # --- Aderência ao plano matinal (M5 — fusão Trade_Agent) ----------------
+    with st.expander(t("dash.adherence_expander"), expanded=False):
+        st.caption(t("dash.adherence_caption"))
+
+        a_total = adherence["total_groups"]
+        a_compliant = adherence["compliant"]
+        a_unplanned = adherence["unplanned"]
+        a_size = adherence["size_exceeded"]
+        a_against = adherence.get("against_plan", 0)
+        a_creep = adherence.get("size_creep_day", 0)
+        a_score = adherence["score_pct"]
+
+        score_cls = (
+            color_class(1.0) if a_score >= 80
+            else (color_class(0.0) if a_score >= 50 else color_class(-1.0))
+        )
+        score_html = (
+            f'<div class="segment-box">'
+            f'<h4 style="color:{TEXT}">{t("dash.adherence.score")}</h4>'
+            f'<div class="segment-row" style="font-size:2em">'
+            f'<span class="{score_cls}">{a_score:.1f}%</span></div>'
+            f'<div class="segment-row"><span>{t("dash.adherence.total_ops")}</span>'
+            f'<span>{a_total}</span></div>'
+            f'<div class="segment-row"><span>{t("dash.adherence.compliant")}</span>'
+            f'<span class="pos">{a_compliant}</span></div>'
+            f'<div class="segment-row"><span>{t("dash.adherence.unplanned")}</span>'
+            f'<span class="neg">{a_unplanned}</span></div>'
+            f'<div class="segment-row"><span>{t("dash.adherence.size_exceeded")}</span>'
+            f'<span class="neg">{a_size}</span></div>'
+            f'<div class="segment-row"><span>{t("dash.adherence.against_plan")}</span>'
+            f'<span class="neg">{a_against}</span></div>'
+            f'<div class="segment-row"><span>{t("dash.adherence.size_creep_day")}</span>'
+            f'<span class="neg">{a_creep}</span></div>'
+            f'</div>'
+        )
+        c_score, c_legend = st.columns([1, 2])
+        c_score.markdown(score_html, unsafe_allow_html=True)
+        with c_legend:
+            st.markdown(t("dash.adherence.legend"))
+
+        violations = adherence.get("violations", pd.DataFrame())
+        if violations is None or violations.empty:
+            st.success(t("dash.adherence.all_clear"))
+        else:
+            v_show = violations.sort_values("group_start", ascending=False)[
+                [
+                    "violation_type", "trade_day", "contract_name", "type",
+                    "total_size", "plan_max_size",
+                    "group_start", "total_points", "total_net_pnl",
+                ]
+            ].rename(
+                columns={
+                    "violation_type": t("dash.adherence.col.violation"),
+                    "trade_day": t("dash.adherence.col.day"),
+                    "contract_name": t("dash.groups.col.contract"),
+                    "type": t("dash.groups.col.type"),
+                    "total_size": t("dash.adherence.col.real_size"),
+                    "plan_max_size": t("dash.adherence.col.plan_size"),
+                    "group_start": t("dash.groups.col.start"),
+                    "total_points": t("dash.groups.col.total_pts"),
+                    "total_net_pnl": t("dash.groups.col.pnl_net"),
+                }
+            )
+            violation_label = {
+                "unplanned": t("dash.adherence.label.unplanned"),
+                "size_exceeded": t("dash.adherence.label.size_exceeded"),
+                "against_plan": t("dash.adherence.label.against_plan"),
+                "size_creep_day": t("dash.adherence.label.size_creep_day"),
+            }
+            v_show[t("dash.adherence.col.violation")] = (
+                v_show[t("dash.adherence.col.violation")]
+                .map(lambda v: violation_label.get(v, v))
+            )
+            st.dataframe(v_show, use_container_width=True, hide_index=True, height=280)
+
     st.divider()
 
     # --- Tabela de trades ---------------------------------------------------
     st.subheader(t("dash.trades_title", n=len(df)))
-    show = df_with_groups.sort_values("entered_at", ascending=False)[
+    trades_view = df_with_groups.sort_values("entered_at", ascending=False).copy()
+    trades_view["entered_at_dual"] = trades_view["entered_at"].apply(
+        lambda ts: timezones.fmt_dual(pd.to_datetime(ts))
+    )
+    show = trades_view[
         [
-            "id", "trade_day", "contract_name", "type", "size",
+            "id", "trade_day", "entered_at_dual", "contract_name", "type", "size",
             "entry_price", "exit_price", "points", "pnl", "fees",
             "commissions", "pnl_net", "trade_duration", "group_id",
         ]
@@ -704,6 +793,7 @@ def render_dashboard(
         columns={
             "id": t("dash.trades.col.id"),
             "trade_day": t("dash.trades.col.day"),
+            "entered_at_dual": t("dash.trades.col.entered_at"),
             "contract_name": t("dash.trades.col.contract"),
             "type": t("dash.trades.col.type"),
             "size": t("dash.trades.col.qty"),
@@ -1012,6 +1102,13 @@ def _load_action_items() -> pd.DataFrame:
 def _load_day_plans(plan_date_iso: str) -> pd.DataFrame:
     plan_date = date.fromisoformat(plan_date_iso) if plan_date_iso else None
     return daily_plan.list_plans(plan_date=plan_date)
+
+
+@st.cache_data(ttl=30)
+def _load_all_plans() -> pd.DataFrame:
+    """Devolve todos os planos do usuário autenticado (cache compartilhado
+    com o Dashboard para calcular aderência ao plano)."""
+    return daily_plan.list_plans(plan_date=None)
 
 
 def render_day_plan() -> None:
@@ -1546,16 +1643,36 @@ pts_kpis = metrics.compute_kpis(df_with_groups, groups)
 segments = metrics.compute_segments(groups)
 daily = metrics.compute_daily(df_with_groups)
 overview = metrics.compute_overview(df_with_groups)
+try:
+    plans_all = _load_all_plans()
+except Exception:
+    # Se a tabela daily_plans ainda não foi criada no Supabase, segue sem
+    # quebrar o dashboard. O expander de aderência mostra estado vazio.
+    plans_all = pd.DataFrame()
+adherence = metrics.compute_plan_adherence(groups, plans_all)
 
 # --- Abas --------------------------------------------------------------------
 
-tab_dash, tab_coach, tab_dayplan, tab_plan, tab_import, tab_account = st.tabs(
-    [t("tab.dashboard"), t("tab.coach"), t("tab.dayplan"), t("tab.plan"),
-     t("tab.import"), t("tab.account")]
-)
+_show_live = billing.has_feature(_plan, "live_monitor")
+_tab_names = [t("tab.dashboard"), t("tab.coach"), t("tab.dayplan"), t("tab.plan"),
+              t("tab.import")]
+if _show_live:
+    _tab_names.append(t("tab.live"))
+_tab_names.extend([t("tab.settings"), t("tab.account")])
+
+_tabs = st.tabs(_tab_names)
+tab_dash, tab_coach, tab_dayplan, tab_plan, tab_import = _tabs[:5]
+if _show_live:
+    tab_live = _tabs[5]
+    tab_settings, tab_account = _tabs[6], _tabs[7]
+else:
+    tab_live = None
+    tab_settings, tab_account = _tabs[5], _tabs[6]
 
 with tab_dash:
-    render_dashboard(df, df_with_groups, groups, pts_kpis, segments, daily, overview)
+    render_dashboard(
+        df, df_with_groups, groups, pts_kpis, segments, daily, overview, adherence,
+    )
 
 with tab_coach:
     filter_ctx = coach_ai.FilterContext(
@@ -1576,6 +1693,13 @@ with tab_plan:
 
 with tab_import:
     render_import(_user["id"])
+
+if tab_live is not None:
+    with tab_live:
+        live_tab.render_live_tab(_user, _plan)
+
+with tab_settings:
+    user_settings.render_settings_tab(_user, _plan)
 
 with tab_account:
     account.render_account_tab(_user, _plan)

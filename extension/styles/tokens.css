@@ -1,0 +1,109 @@
+/*
+ * tokens.css — design tokens OKLCH para Shadow DOM da extensao TopstepX Monitor
+ *
+ * TOKENS DUPLICADOS DE frontend/app/globals.css.
+ * Sincronizar manualmente ao mudar a paleta no dashboard — Shadow DOM e isolado
+ * e nao enxerga :root do dashboard, entao precisamos repetir os valores aqui.
+ *
+ * Fonte: PRD/planning-artifacts/ux-design-specification.md (UX-DR1..UX-DR5).
+ */
+
+:host,
+:root {
+  /* Warm off-white background (UX-DR1) */
+  --background: oklch(0.985 0.005 60);
+  --foreground: oklch(0.145 0 0);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+
+  /* Fin Orange (UX-DR1) — accent + ring */
+  --accent: oklch(0.69 0.21 39);
+  --accent-foreground: oklch(0.985 0 0);
+
+  /* Red sobrio (UX-DR1) */
+  --destructive: oklch(0.55 0.18 25);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  /* Amber sobrio (UX-DR1) */
+  --warning: oklch(0.70 0.13 70);
+  --warning-foreground: oklch(0.145 0 0);
+
+  /* Green muted (UX-DR1) */
+  --success: oklch(0.50 0.05 150);
+  --success-foreground: oklch(0.985 0 0);
+
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+
+  /* Ring = Fin Orange (UX-DR1) */
+  --ring: oklch(0.69 0.21 39);
+
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+
+  --radius: 0.625rem;
+
+  /* Tipografia (UX-DR2, UX-DR3) */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-serif: "Newsreader", "Iowan Old Style", Cambria, Georgia, serif;
+}
+
+/*
+ * Dark mode (UX-DR3) — aplica-se quando o host ativa .dark.
+ * No Shadow DOM, normalmente alternamos com :host(.dark).
+ */
+:host(.dark),
+.dark {
+  --background: oklch(0.13 0.008 240);
+  --foreground: oklch(0.985 0 0);
+
+  --card: oklch(0.15 0.01 240);
+  --card-foreground: oklch(0.985 0 0);
+
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+
+  /* Fin Orange brightened (UX-DR3) */
+  --accent: oklch(0.74 0.20 39);
+  --accent-foreground: oklch(0.13 0.008 240);
+
+  --destructive: oklch(0.62 0.20 25);
+  --destructive-foreground: oklch(0.985 0 0);
+
+  --warning: oklch(0.78 0.14 70);
+  --warning-foreground: oklch(0.145 0 0);
+
+  --success: oklch(0.62 0.07 150);
+  --success-foreground: oklch(0.13 0.008 240);
+
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+
+  --ring: oklch(0.74 0.20 39);
+}

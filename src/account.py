@@ -264,3 +264,23 @@ def render_account_tab(user: dict, plan: dict | None) -> None:
         if st.button(t("billing.manage_subscription"),
                      key="open_portal", use_container_width=False):
             _trigger_portal(customer_id)
+
+    # --- Extensao Chrome — JWT para colar no popup --------------------------
+    # Visivel apenas para planos com feature live_monitor (Pro/Trial/admin).
+    if billing.has_feature(plan, "live_monitor"):
+        st.divider()
+        st.markdown(f"#### {t('account.extension_section')}")
+        st.caption(t("account.extension_caption"))
+        sess = st.session_state.get("session", {})
+        jwt = sess.get("access_token", "")
+        if jwt:
+            st.text_input(
+                t("account.extension_jwt_label"),
+                value=jwt,
+                type="password",
+                key="account_extension_jwt",
+                help=t("account.extension_jwt_help"),
+            )
+            st.caption(t("account.extension_jwt_hint"))
+        else:
+            st.warning(t("account.extension_jwt_missing"), icon="⚠️")

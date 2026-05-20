@@ -13,6 +13,14 @@ from __future__ import annotations
 import pandas as pd
 
 
+# Nome da coluna usada como "dia da sessão" em KPIs/agregações do Dashboard.
+# load_trades() em app.py adiciona `trade_day_et` (sessão NY/ET — fuso primário
+# da fusão M7). Se a coluna não estiver presente (caller antigo), `_day_col`
+# faz fallback para `trade_day` (CT, vindo do CSV TopStepX).
+def _day_col(df: pd.DataFrame) -> str:
+    return "trade_day_et" if "trade_day_et" in df.columns else "trade_day"
+
+
 # ---------------------------------------------------------------------------
 # Overlap grouping engine — "operações" (group_id) a partir de trades
 # ---------------------------------------------------------------------------
@@ -80,6 +88,162 @@ def _status(v: float) -> str:
     if v < 0:
         return "Loser"
     return "Flat"
+
+
+# ---------------------------------------------------------------------------
+# Aderência ao plano matinal (daily_plans) — M5 da fusão com Trade_Agent
+# ---------------------------------------------------------------------------
+
+
+VIOLATION_TYPES = (
+    "unplanned",        # sem plano (mesmo contrato + direção) no dia
+    "size_exceeded",    # operação isolada acima do max_size do plano
+    "against_plan",     # plano existe para a contraparte (mesmo contrato, direção OPOSTA)
+    "size_creep_day",   # soma do dia em (contrato, direção) ultrapassa max_size
+)
+
+
+def compute_plan_adherence(groups: pd.DataFrame, plans: pd.DataFrame) -> dict:
+    """Score de aderência ao plano matinal (M8 da fusão).
+
+    Classifica cada operação real (linha em `groups`) em uma das 5 categorias:
+
+    - **compliant**: plano existe (mesmo contrato + direção) e `total_size <= plan.max_size`.
+    - **unplanned**: não há plano nenhum para esse (date, contract, direction).
+    - **size_exceeded**: plano existe mas `total_size > plan.max_size`.
+    - **against_plan**: plano existe para o contrato em **direção oposta** (trader
+      operou contra a tese matinal). Toma precedência sobre `unplanned`.
+    - **size_creep_day**: a soma de `total_size` ao longo do dia em
+      (contrato, direção) ultrapassa `plan.max_size` — mesmo que cada operação
+      individual estivesse dentro do limite. Detecta "tilt distribuído" em
+      múltiplos grupos no mesmo dia.
+
+    O `trade_day` da operação usa fuso primário NY/ET (sessão CME). Mesmo
+    fuso usado pelo Dashboard via `trade_day_et` (M7).
+
+    Devolve dict com contadores, score percentual e DataFrame `violations`
+    pronto para renderização.
+    """
+    if groups.empty:
+        return _empty_adherence()
+
+    g = groups.copy()
+    g["trade_day"] = (
+        pd.to_datetime(g["group_start"])
+        .dt.tz_convert("America/New_York")
+        .dt.date
+    )
+
+    if plans.empty:
+        violations = g.assign(
+            violation_type="unplanned", plan_max_size=pd.NA,
+        )
+        return {
+            "total_groups": int(len(g)),
+            "compliant": 0,
+            "unplanned": int(len(g)),
+            "size_exceeded": 0,
+            "against_plan": 0,
+            "size_creep_day": 0,
+            "score_pct": 0.0,
+            "violations": violations,
+        }
+
+    # Índices auxiliares:
+    # - plan_idx: (date, contract, direction) -> max_size — match exato.
+    # - plan_contracts_by_day: (date, contract) -> set(direction) — para detectar
+    #   against_plan (existe plano para o contrato em direção oposta).
+    plan_idx = (
+        plans.set_index(["plan_date", "contract_name", "direction"])["max_size"]
+        .to_dict()
+    )
+    plan_contracts_by_day: dict[tuple, set] = {}
+    for _, p in plans.iterrows():
+        key = (p["plan_date"], p["contract_name"])
+        plan_contracts_by_day.setdefault(key, set()).add(p["direction"])
+
+    # Acumulador para size_creep_day: soma rolante de total_size por
+    # (day, contract, direction) — processada em ordem temporal para que
+    # a primeira operação que cruzar o limite seja a flagada.
+    g_sorted = g.sort_values("group_start").copy()
+    day_cumulative: dict[tuple, int] = {}
+    creep_flags: dict[int, int] = {}  # group_id -> max_size do plano quando estourou
+
+    for idx, row in g_sorted.iterrows():
+        key = (row["trade_day"], row["contract_name"], row["type"])
+        max_size = plan_idx.get(key)
+        if max_size is None:
+            continue
+        prev = day_cumulative.get(key, 0)
+        new_total = prev + int(row["total_size"])
+        day_cumulative[key] = new_total
+        # Marca creep apenas se já há volume anterior (>0) e o acumulado
+        # acabou de cruzar — operações isoladas que estouram sozinhas viram
+        # size_exceeded, não creep.
+        if prev > 0 and new_total > int(max_size) and int(row["total_size"]) <= int(max_size):
+            creep_flags[int(row["group_id"])] = int(max_size)
+
+    def _classify(row: pd.Series) -> pd.Series:
+        key = (row["trade_day"], row["contract_name"], row["type"])
+        max_size = plan_idx.get(key)
+
+        if max_size is None:
+            # Sem plano exato. Checa direção oposta para distinguir against_plan
+            # de unplanned puro.
+            day_contract = (row["trade_day"], row["contract_name"])
+            sides = plan_contracts_by_day.get(day_contract, set())
+            opposite = {"Long": "Short", "Short": "Long"}.get(row["type"])
+            if opposite and opposite in sides:
+                opp_max = plan_idx.get((*day_contract, opposite))
+                return pd.Series({
+                    "violation_type": "against_plan",
+                    "plan_max_size": int(opp_max) if opp_max is not None else pd.NA,
+                })
+            return pd.Series({"violation_type": "unplanned", "plan_max_size": pd.NA})
+
+        if int(row["total_size"]) > int(max_size):
+            return pd.Series({
+                "violation_type": "size_exceeded",
+                "plan_max_size": int(max_size),
+            })
+
+        # size_creep_day toma precedência sobre compliant nesta linha específica.
+        if int(row["group_id"]) in creep_flags:
+            return pd.Series({
+                "violation_type": "size_creep_day",
+                "plan_max_size": creep_flags[int(row["group_id"])],
+            })
+
+        return pd.Series({"violation_type": pd.NA, "plan_max_size": int(max_size)})
+
+    g[["violation_type", "plan_max_size"]] = g.apply(_classify, axis=1)
+
+    counts = {v: int((g["violation_type"] == v).sum()) for v in VIOLATION_TYPES}
+    compliant = int(g["violation_type"].isna().sum())
+    total = int(len(g))
+    score_pct = 100.0 * compliant / total if total else 0.0
+    violations = g[g["violation_type"].notna()].copy()
+
+    return {
+        "total_groups": total,
+        "compliant": compliant,
+        "score_pct": score_pct,
+        "violations": violations,
+        **counts,
+    }
+
+
+def _empty_adherence() -> dict:
+    return {
+        "total_groups": 0,
+        "compliant": 0,
+        "unplanned": 0,
+        "size_exceeded": 0,
+        "against_plan": 0,
+        "size_creep_day": 0,
+        "score_pct": 0.0,
+        "violations": pd.DataFrame(),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +360,13 @@ def _empty_segment() -> dict:
 
 
 def compute_daily(df: pd.DataFrame) -> pd.DataFrame:
-    """Daily breakdown. Espelha `processor.py:274-293`."""
+    """Daily breakdown. Espelha `processor.py:274-293`.
+
+    Usa `trade_day_et` (sessão NY/ET) se presente; senão fallback para
+    `trade_day` (CT, vindo do CSV TopStepX). A coluna devolvida mantém o
+    nome `trade_day` para preservar compatibilidade com os charts.
+    """
+    day_col = _day_col(df)
     if df.empty:
         return pd.DataFrame(
             columns=[
@@ -230,9 +400,10 @@ def compute_daily(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     out = (
-        df.groupby("trade_day")
+        df.groupby(day_col)
         .apply(_agg, include_groups=False)
         .reset_index()
+        .rename(columns={day_col: "trade_day"})
         .sort_values("trade_day")
     )
     return out
@@ -270,11 +441,14 @@ def compute_overview(df: pd.DataFrame) -> dict:
 
     d = df.copy()
     d["duration_sec"] = (d["exited_at"] - d["entered_at"]).dt.total_seconds()
+    day_col = _day_col(d)
 
     wins = d[d["pnl_net"] > 0]
     losses = d[d["pnl_net"] < 0]
 
-    daily_pnl = d.groupby("trade_day", as_index=False)["pnl_net"].sum()
+    daily_pnl = d.groupby(day_col, as_index=False)["pnl_net"].sum().rename(
+        columns={day_col: "trade_day"}
+    )
     day_total = float(daily_pnl["pnl_net"].sum())
     winning_days = int((daily_pnl["pnl_net"] > 0).sum())
     total_days = int(len(daily_pnl))
@@ -472,7 +646,8 @@ def _coach_cut_hold(d: pd.DataFrame) -> dict:
 
 def _coach_overtrading(d: pd.DataFrame) -> dict:
     """Compara dias acima do p75 de nº de trades vs. dias normais."""
-    per_day = d.groupby("trade_day").agg(
+    day_col = _day_col(d)
+    per_day = d.groupby(day_col).agg(
         trades=("id", "count"), pnl=("pnl_net", "sum"),
     ).reset_index()
     if per_day.empty:

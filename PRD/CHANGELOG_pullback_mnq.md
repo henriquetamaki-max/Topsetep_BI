@@ -43,9 +43,12 @@ indicadores 0.2.x salvos no chart não migram automaticamente; readicionar.
 
 ### Robustez / Bootstrap
 
-- **Detecção do widget validada por shape**, não só `getCustomIndicators`:
-  exige também 1 entre `chart` / `subscribe` / `setSymbol` / `_options` /
-  `_innerAPI`. Reduz falso-positivo se outro objeto global tiver método homônimo.
+- **Detecção do widget com log diagnóstico do shape**: o check obrigatório
+  continua sendo `getCustomIndicators` (única propriedade que o `tradingview_*`
+  da TopstepX expõe — confirmado empiricamente em 2026-05-20). Ao patchar,
+  loga as propriedades extras encontradas (`cfg shape: ...`) entre uma lista
+  de sondas — útil para detectar mudanças futuras no shape do widget sem
+  endurecer a detecção e correr risco de falso-negativo.
 - **Prefixos múltiplos aceitos**: `tradingview_`, `tradingview_widget_`,
   `TVChartContainer_` — lista configurável no topo.
 - **Soft-watch contínuo após 10s**: intervalo de scan cai para 1s mas continua

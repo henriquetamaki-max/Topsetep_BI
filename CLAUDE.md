@@ -91,13 +91,16 @@ Estas skills estão disponíveis no harness e devem ser usadas proativamente nos
 ### Estrutura de pastas
 
 ```
-src/                       # código Python (10 módulos)
+src/                       # código Python (15 módulos pós-fusão Trade_Agent)
 locales/{en,es,pt_BR}.json # i18n — 3 idiomas SEMPRE sincronizados
-PRD/                       # schema SQL + PRDs + migrations + userscript
-supabase/functions/        # Edge Functions Deno (Stripe webhook etc.)
+PRD/                       # schema SQL + PRDs + migrations + userscript + ENCERRAMENTO
+supabase/functions/        # Edge Functions Deno (stripe-webhook, live-ingest)
+extension/                 # extensão Chrome MV3 (BI TopStep Live Monitor)
+scripts/                   # ferramentas (package_extension.py etc.)
 Env/                       # segredos LOCAL (gitignored, nunca commitar)
 .streamlit/                # secrets.toml para deploy (gitignored)
 assets/                    # imagens estáticas (login screen etc.)
+dist/                      # builds (.zip da extensão) — gitignored
 CSV input/ CSV output/     # legados do CLI ingest.py — gitignored
 ```
 
@@ -144,7 +147,10 @@ Aplicado manualmente no Supabase SQL Editor, em ordem:
 
 1. `PRD/schema.sql` — `trades`, `coach_analyses`, `action_items`.
 2. `PRD/saas_schema.sql` — `plans`, `subscriptions`, `admin_users` (M1-M4).
-3. `PRD/m<N>_<feature>.sql` — migrations da fusão (M5+: `daily_plans` etc.).
+3. `PRD/m5_daily_plans.sql` — plano matinal (M5).
+4. `PRD/m6_*.sql` — schemas da fusão (M6): `contracts`, `live_snapshots` + `purge_old_live_snapshots()`, `alerts` + enums, `tilt_patterns`, `payouts`, `risk_settings`, `accounts`. Ordem em `PRD/m6_README.md`.
+5. `PRD/m9_features.sql` — habilita `features.live_monitor=true` em `plans.slug in ('pro','admin','trial')`.
+6. `PRD/m10_risk_guard_trigger.sql` — trigger `AFTER INSERT` em `live_snapshots` que avalia 4 regras (DLL, Trailing DD, Max Size, Unplanned Addition) e insere em `alerts` com cooldown anti-spam de 5min.
 
 **Regras absolutas para toda tabela nova:**
 
@@ -157,13 +163,40 @@ Aplicado manualmente no Supabase SQL Editor, em ordem:
 
 ### Edge Functions (`supabase/functions/`)
 
-Deno + TypeScript, `verify_jwt=false` quando autenticação vem de assinatura externa (Stripe HMAC). Cliente Supabase usa `SERVICE_ROLE_KEY` (bypassa RLS — webhook é única escrita legítima em tabelas privilegiadas).
+Deno + TypeScript. Funções existentes:
+
+- **`stripe-webhook`** — `verify_jwt=false`; autenticação via assinatura HMAC do Stripe. Cliente Supabase usa `SERVICE_ROLE_KEY`. Trata 6 eventos (checkout/subscription/invoice).
+- **`live-ingest`** — `verify_jwt=false` no manifest, mas valida o JWT do usuário server-side via `supabase.auth.getUser()` antes de INSERT. Cliente Supabase usa `SERVICE_ROLE_KEY` apenas no INSERT (RLS bypass) — o `user_id` gravado é sempre o do token validado, nunca do payload do cliente. Suporta modo `{ping:true}` para health-check da extensão.
 
 Cada função tem:
-
 - `index.ts` — handler.
 - `README.md` — eventos tratados, secrets, deploy, teste local com Stripe CLI / supabase functions serve.
 - `.env.example` — todos os secrets esperados (gitignored o `.env` real).
+
+### Extensão Chrome (`extension/`)
+
+MV3 vanilla JS. Estrutura:
+- `manifest.json` — name "BI TopStep — Live Monitor", v0.1.0. Permissões enxutas (`storage, alarms, tabs, notifications`).
+- `config.js` — URLs do Supabase (preenchidas em build time pelo `scripts/package_extension.py --supabase-url X --anon-key Y`, ou editadas à mão para dev).
+- `background.js` — service worker. `chrome.alarms` 30s heartbeat + debounce de 5s entre envios. `sendSnapshot()` via fetch para `live-ingest` Edge Function.
+- `content.js` — scrape do DOM `topstepx.com/trade` a cada 5s. Manda `SNAPSHOT_CHANGED` para o background apenas quando há mudança relevante. Marca `scrape_status=broken` após 3 ciclos vazios consecutivos.
+- `popup.html/js/css` — UI mínima: textarea de JWT, botões Save/Test, status do scrape, status do último envio.
+- `selectors.json` — seletores DOM versionados; trader atualiza quando markup TopstepX muda.
+- `README.md` — instruções de load unpacked.
+
+Distribuição (MVP): zip via `scripts/package_extension.py` → `dist/extension/extension-latest.zip` → upload manual no Supabase Storage (bucket público `extension/`). Aba "Live" do app linka para esse zip.
+
+### Aba "Live" (`src/live.py`, plano Pro)
+
+Visível apenas para usuários com `billing.has_feature(plan, "live_monitor")`. Polling via `streamlit-autorefresh` (3s). Sub-seções: status conexão, posição atual, PnL realized/day/drawdown, alertas (cartões coloridos por severity com botões mark_read/dismiss inline + contador de unread), instalação da extensão. Componente JS leve (`_inject_web_notifications`) assina `postgres_changes` da tabela `alerts` via supabase-js (esm.sh) e dispara `Notification` API em INSERTs de severity warn/critical.
+
+### Aba "Configurações" (`src/settings.py`)
+
+Idioma (reusa `i18n.language_selector`), fuso (primário ET fixo, secundário auto-detectado por JS + override manual, persiste em `user_metadata.preferred_tz`), Risk Guard CRUD (5 inputs com defaults sugeridos por account_type; persiste em `risk_settings`), Contas TopStep (stub — backlog Fase 3.b).
+
+### Risk Guard
+
+Trigger Postgres `risk_guard_eval` em `live_snapshots` (criado por `PRD/m10_risk_guard_trigger.sql`) avalia 4 regras consultando `risk_settings` + `daily_plans` (em fuso NY/ET) e insere em `alerts` via helper `_rg_insert_alert` com **cooldown de 5min** por (user_id, alert_type) para anti-spam. Sem Edge Function dedicada — toda a lógica vive no banco para latência mínima.
 
 ---
 
@@ -192,12 +225,14 @@ Cada função tem:
 - Data editors devem usar `key` parametrizado quando a estrutura varia por seleção (ex.: `f"day_plan_editor_{selected_date.isoformat()}"`).
 - Tema: preferência do usuário persiste em `user_metadata.preferred_language` via Supabase Auth.
 
-### Timezone
+### Timezone (dual-tz pós-M7)
 
-- Fonte da verdade do CSV TopStepX está em **Chicago (CT)** — o `trade_day` é calculado nessa timezone no ingest.
 - Internamente todo timestamp é armazenado em **UTC** (Postgres `timestamptz`).
-- Para exibição de "dia da sessão", sempre converter para `America/Chicago` antes de extrair `.date()`.
-- `entry_hour` para análise horária é convertido para `America/Sao_Paulo` (BRT — perspectiva do trader).
+- **Fuso primário fixo** = `America/New_York` (sessão CME). Usado em: `trade_day_et` derivado no `load_trades` do Dashboard, KPIs/calendário/coach do Dashboard, comparação de `daily_plans` no Risk Guard trigger.
+- **Fuso secundário do usuário** = `user_metadata.preferred_tz`, auto-detectado via JS no primeiro login (`Intl.DateTimeFormat().resolvedOptions().timeZone`); sobrescrevível na aba Configurações; fallback `America/Sao_Paulo`. Usado em: `entry_hour` para análise horária, segunda metade do `fmt_dual()` nos cards/tabela de trades/alertas.
+- **`trade_day` (coluna do banco)** continua em CT — vem do CSV TopStepX. **NÃO usar** em métricas novas; usar `trade_day_et` derivado em memória.
+- **Helpers:** `src/timezones.py` — `PRIMARY_TZ`, `user_tz()`, `to_primary(ts)`, `to_user(ts)`, `fmt_dual(ts) -> "HH:MM ET / HH:MM BRT"`.
+- Em `metrics.py`, funções que precisam agregar por dia usam `_day_col(df)` que prefere `trade_day_et` quando presente, mantendo back-compat.
 
 ### Git
 
