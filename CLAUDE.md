@@ -19,11 +19,11 @@ python -m venv .venv
 pip install -r requirements.txt
 
 # Rodar o app (dashboard + login + upload)
-streamlit run app.py
+streamlit run src/app.py
 
 # (Opcional) Ingestão local via CLI legado — lê CSV input/, atribui ao
 # INGEST_USER_ID configurado no Env, move para CSV output/.
-python ingest.py
+python src/ingest.py
 ```
 
 Schema do banco vive em `PRD/schema.sql` e é aplicado manualmente uma vez no Supabase SQL Editor.

@@ -29,7 +29,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from supabase import Client, create_client
 
-_ENV_FILE = Path(__file__).resolve().parent / "Env" / "Topstep_bi.env"
+_ENV_FILE = Path(__file__).resolve().parent.parent / "Env" / "Topstep_bi.env"
 
 
 def _t(key: str, **kwargs) -> str:

@@ -14,7 +14,7 @@ if not exist ".venv\Scripts\python.exe" (
 )
 
 echo === Importando CSVs para Supabase ===
-".venv\Scripts\python.exe" ingest.py
+".venv\Scripts\python.exe" src\ingest.py
 set EXITCODE=%ERRORLEVEL%
 
 echo.

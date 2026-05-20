@@ -29,7 +29,7 @@ import ingest_core
 import metrics
 from i18n import t
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 
 # ----------------------------- Tema / Cores ----------------------------------
 
@@ -1190,7 +1190,8 @@ with st.sidebar:
         auth.sign_out()
     st.divider()
 
-df_all = load_trades(_user["id"])
+with st.spinner(t("app.loading")):
+    df_all = load_trades(_user["id"])
 
 st.title(t("app.title"))
 st.caption(t("app.caption_logged", email=_user.get('email') or _user['id']))

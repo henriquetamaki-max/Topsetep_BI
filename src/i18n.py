@@ -24,7 +24,7 @@ LANGS: dict[str, str] = {
     "es": "Español",
 }
 
-_LOCALES_DIR = Path(__file__).resolve().parent / "locales"
+_LOCALES_DIR = Path(__file__).resolve().parent.parent / "locales"
 
 # Mapeamento entre valores canônicos do banco (action_items.status / .priority,
 # em PT por CHECK constraint) e as chaves i18n de exibição.

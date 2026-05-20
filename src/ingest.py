@@ -32,7 +32,7 @@ from supabase import create_client
 
 import ingest_core
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 INPUT_DIR = ROOT / "CSV input"
 OUTPUT_DIR = ROOT / "CSV output"
 ENV_FILE = ROOT / "Env" / "Topstep_bi.env"
