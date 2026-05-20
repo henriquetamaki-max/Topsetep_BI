@@ -4,6 +4,7 @@
   "app.caption_logged": "Dashboard de trades — logado como **{email}**.",
   "app.empty_no_trades": "Nenhum trade no seu perfil ainda. Suba os CSVs exportados do TopStepX abaixo para popular o dashboard.",
   "app.empty_filtered": "Nenhum trade encontrado com os filtros atuais.",
+  "app.loading": "Carregando seus trades…",
 
   "auth.login_caption": "Faça login para acessar seu dashboard de trades.",
   "auth.tab_login": "Entrar",

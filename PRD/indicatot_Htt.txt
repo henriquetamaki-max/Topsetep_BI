@@ -1,0 +1,306 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Henrique
+
+//@version=6
+indicator("Pullbacks MNQ - Bone Zone v7.1 PRO", overlay=true, max_labels_count=500)
+
+// =================================================================================================
+// 1. INPUTS E GRUPOS DE CONFIGURAÇÃO
+// =================================================================================================
+
+// Grupo: "Configurações da Tabela / Visual"
+GRP_VISUAL = "Configurações da Tabela / Visual"
+afastarTabela  = input.float(15.0, title="Afastar Tabela da Direita (%)", tooltip="Cria uma coluna invisível para empurrar a tabela", group=GRP_VISUAL)
+
+// Grupo: "Filtros de Entrada (Bone Zone)"
+GRP_FILTROS = "Filtros de Entrada (Bone Zone)"
+filtrarEmas    = input.bool(true, title="Filtrar por EMAs Alinhadas (Bone Zone)", group=GRP_FILTROS)
+exigirReversao = input.bool(true, title="Exigir Vela Anterior de Reversão", group=GRP_FILTROS)
+margemToque    = input.float(0.0, title="Margem/Folga de Toque (Pontos)", group=GRP_FILTROS)
+mostrarB       = input.bool(true, title="Mostrar Entradas Tipo B?", group=GRP_FILTROS)
+mostrarC       = input.bool(true, title="Mostrar Entradas Tipo C?", group=GRP_FILTROS)
+usarSom        = input.bool(true, title="Tocar Som (Beep) no Alerta?", tooltip="Ativa o som nativo da TradingView quando o sinal disparar", group=GRP_FILTROS)
+
+// Grupo: "Filtros de Risco e Alvo"
+GRP_RISCO = "Filtros de Risco e Alvo"
+maxStopLoss    = input.float(100.0, title="Stop Loss Máximo (Pontos)", group=GRP_RISCO)
+minAlvo        = input.float(0.0, title="Alvo Mínimo (Pontos) para Validação", group=GRP_RISCO)
+
+// Grupo: "Mestre de Tendência (AlgoAlpha)"
+GRP_ALGO = "Mestre de Tendência (AlgoAlpha)"
+usarMTF          = input.bool(false, title="Sinal só dispara se MTF AlgoAlpha Confirmar", group=GRP_ALGO)
+lookbackZLEMA    = input.int(20, title="Lookback ZLEMA", group=GRP_ALGO)
+bandaVolatilidade= input.float(1.2, title="Banda Volatilidade ATR", group=GRP_ALGO)
+tf1              = input.timeframe("5", title="Time frame 1 (5m)", group=GRP_ALGO)
+tf2              = input.timeframe("15", title="Time frame 2 (15m)", group=GRP_ALGO)
+tf3              = input.timeframe("60", title="Time frame 3 (60m)", group=GRP_ALGO)
+
+
+// =================================================================================================
+// 2. INDICADORES BASE (MÉDIAS, VWAP, VOLUME E ALGOALPHA)
+// =================================================================================================
+
+// -- EMAs --
+ema9   = ta.ema(close, 9)
+ema21  = ta.ema(close, 21)
+ema50  = ta.ema(close, 50)
+ema200 = ta.ema(close, 200)
+
+p9   = plot(ema9, color=color.blue, title="EMA 9")
+p21  = plot(ema21, color=color.yellow, title="EMA 21")
+plot(ema50, color=color.orange, linewidth=2, title="EMA 50")
+plot(ema200, color=color.silver, linewidth=2, title="EMA 200")
+fill(p9, p21, color=color.rgb(33, 149, 243, 80), title="Bone Zone")
+
+// -- VWAP Diária --
+vwapDay = ta.vwap(close)
+plot(vwapDay, color=color.white, linewidth=1, style=plot.style_stepline, title="VWAP Diária")
+
+// -- Volume SMA --
+smaVolume20 = ta.sma(volume, 20)
+
+// -- Função de Horário (Fuso Horário do Gráfico) --
+f_getTimeString(t) =>
+    str.tostring(hour(t, syminfo.timezone), "00") + ":" + 
+     str.tostring(minute(t, syminfo.timezone), "00") + ":" + 
+     str.tostring(second(t, syminfo.timezone), "00")
+
+// -- AlgoAlpha MTF --
+f_algoAlphaTrend() =>
+    lag = math.floor((lookbackZLEMA - 1) / 2)
+    zlema = ta.ema(close + (close - close[lag]), lookbackZLEMA)
+    volatility = ta.highest(ta.atr(lookbackZLEMA), lookbackZLEMA * 3) * bandaVolatilidade
+    
+    var int aaTrend = 0
+    if close > zlema + volatility
+        aaTrend := 1
+    else if close < zlema - volatility
+        aaTrend := -1
+    aaTrend
+
+s1 = request.security(syminfo.tickerid, tf1, f_algoAlphaTrend())
+s2 = request.security(syminfo.tickerid, tf2, f_algoAlphaTrend())
+s3 = request.security(syminfo.tickerid, tf3, f_algoAlphaTrend())
+
+mtfConfirmaAlta  = usarMTF ? (s1 == 1 and s2 == 1 and s3 == 1) : true
+mtfConfirmaBaixa = usarMTF ? (s1 == -1 and s2 == -1 and s3 == -1) : true
+
+
+// =================================================================================================
+// 3. CONTADOR E CLASSIFICAÇÃO DE TENDÊNCIA
+// =================================================================================================
+
+// Condições de Tendência
+tendenciaForteAlta  = ema9 > ema21 and ema21 > ema50 and ema50 > ema200
+tendenciaNormalAlta = close > ema50 and close > ema200 and ema9 > ema21
+isAlta  = filtrarEmas ? tendenciaForteAlta : tendenciaNormalAlta
+
+tendenciaForteBaixa  = ema9 < ema21 and ema21 < ema50 and ema50 < ema200
+tendenciaNormalBaixa = close < ema50 and close < ema200 and ema9 < ema21
+isBaixa = filtrarEmas ? tendenciaForteBaixa : tendenciaNormalBaixa
+
+var int pullbackCount = 0
+
+// Zera o contador sempre que houver mudança na validade de tendência direcional
+if (isAlta and not isAlta[1]) or (isBaixa and not isBaixa[1])
+    pullbackCount := 0
+
+
+// =================================================================================================
+// 4. LÓGICA DE TOQUE E GATILHOS
+// =================================================================================================
+
+zoneMax = math.max(ema9, ema21) + margemToque
+zoneMin = math.min(ema9, ema21) - margemToque
+
+tocouBoneZone = (low <= zoneMax and high >= zoneMin)
+tocouEMA50    = (low <= ema50 + margemToque and high >= ema50 - margemToque)
+tocouVWAP     = (low <= vwapDay + margemToque and high >= vwapDay - margemToque)
+
+isTouched = tocouBoneZone or tocouEMA50 or tocouVWAP
+
+velaAnteriorNegativa = close[1] < open[1]
+velaAnteriorPositiva = close[1] > open[1]
+
+filtroVelaAntAlta  = exigirReversao ? velaAnteriorNegativa : true
+filtroVelaAntBaixa = exigirReversao ? velaAnteriorPositiva : true
+
+gatilhoAlta  = close > open
+gatilhoBaixa = close < open
+
+stopLong  = math.min(low, ema21)
+stopShort = math.max(high, ema21)
+
+riscoLong  = close - stopLong
+riscoShort = stopShort - close
+
+riscoValidoLong  = riscoLong <= maxStopLoss and (riscoLong * 2) >= minAlvo
+riscoValidoShort = riscoShort <= maxStopLoss and (riscoShort * 2) >= minAlvo
+
+preSinalAlta  = isAlta and isTouched and filtroVelaAntAlta and gatilhoAlta and riscoValidoLong and mtfConfirmaAlta
+preSinalBaixa = isBaixa and isTouched and filtroVelaAntBaixa and gatilhoBaixa and riscoValidoShort and mtfConfirmaBaixa
+
+
+// =================================================================================================
+// 5. CLASSIFICAÇÃO DOS PULLBACKS (A+, B, C)
+// =================================================================================================
+
+bool longA  = false
+bool longB  = false
+bool longC  = false
+bool shortA = false
+bool shortB = false
+bool shortC = false
+
+if preSinalAlta
+    pullbackCount += 1 // Incrementamos o contador de toque da tendência
+    if (tocouEMA50 or (pullbackCount == 2)) and mostrarB
+        longB := true
+    else if ((pullbackCount >= 3) or (volume > smaVolume20)) and mostrarC
+        longC := true
+    else if (pullbackCount == 1) and (volume <= smaVolume20)
+        longA := true
+        
+if preSinalBaixa
+    pullbackCount += 1
+    if (tocouEMA50 or (pullbackCount == 2)) and mostrarB
+        shortB := true
+    else if ((pullbackCount >= 3) or (volume > smaVolume20)) and mostrarC
+        shortC := true
+    else if (pullbackCount == 1) and (volume <= smaVolume20)
+        shortA := true
+
+isLongSig  = longA or longB or longC
+isShortSig = shortA or shortB or shortC
+
+// Visuals
+// TIPO A+ (Diamond): Verde / Vermelho
+plotshape(longA, style=shape.diamond, location=location.belowbar, color=color.green, size=size.normal, title="Long A+")
+plotshape(shortA, style=shape.diamond, location=location.abovebar, color=color.red, size=size.normal, title="Short A+")
+
+// TIPO B (Triangle): Verde Limão / Laranja
+plotshape(longB, style=shape.triangleup, location=location.belowbar, color=color.lime, size=size.small, title="Long B")
+plotshape(shortB, style=shape.triangledown, location=location.abovebar, color=color.orange, size=size.small, title="Short B")
+
+// TIPO C (Xcross): Bordô (Maroon) e Cinza / Cuidado
+plotshape(longC, style=shape.xcross, location=location.belowbar, color=color.gray, size=size.small, title="Long C")
+plotshape(shortC, style=shape.xcross, location=location.abovebar, color=color.maroon, size=size.small, title="Short C")
+
+
+// =================================================================================================
+// 6. ALERTAS (alertcondition)
+// =================================================================================================
+
+alertcondition(longA or shortA, title="Pullback A+ (Compra/Venda)", message="Alert: Pullback Tipo A+ acionado.")
+alertcondition(longB or shortB, title="Pullback B (Compra/Venda)", message="Alert: Pullback Tipo B acionado.")
+alertcondition(longC or shortC, title="Pullback C - Risco de Exaustão", message="Alert: Pullback Tipo C acionado, risco de exaustão.")
+alertcondition(isLongSig or isShortSig, title="TODOS OS SINAIS (A+, B, C)", message="Sinal de Pullback detectado!")
+
+
+// =================================================================================================
+// 7. CÁLCULO DE RISCO E PERSISTÊNCIA (ANTI-GHOSTING)
+// =================================================================================================
+
+// Variáveis de Long (Live)
+longType  = longA ? "A+" : (longB ? "B" : "C")
+longEntry = close
+longStop  = stopLong
+longRisk  = riscoLong
+
+// Variáveis de Short (Live)
+shortType  = shortA ? "A+" : (shortB ? "B" : "C")
+shortEntry = close
+shortStop  = stopShort
+shortRisk  = riscoShort
+
+// --- SISTEMA DE PERSISTÊNCIA (Grava apenas o sinal confirmado no gráfico) ---
+var string confirmedType  = "Nenhum"
+var float  confirmedEntry = na
+var float  confirmedStop  = na
+var float  confirmedRisk  = na
+var string confirmedDir   = "N/A"
+var string confirmedTime  = "N/A"
+
+// --- DISPARO DE ALERTA DINÂMICO (Biper em tempo real) ---
+if (isLongSig or isShortSig) and usarSom
+    alert("PULLBACK " + (isLongSig ? longType : shortType) + " (" + (isLongSig ? "Long" : "Short") + ")", alert.freq_once_per_bar)
+    log.info("SINAL DETECTADO: {0} ({1}) em {2}", (isLongSig ? longType : shortType), (isLongSig ? "Long" : "Short"), str.tostring(close))
+
+// --- SISTEMA DE PERSISTÊNCIA (Grava apenas o sinal confirmado para a tabela) ---
+if (isLongSig or isShortSig) and barstate.isconfirmed
+    confirmedType  := isLongSig ? longType : shortType
+    confirmedEntry := isLongSig ? longEntry : shortEntry
+    confirmedStop  := isLongSig ? longStop : shortStop
+    confirmedRisk  := isLongSig ? longRisk : shortRisk
+    confirmedDir   := isLongSig ? "Long" : "Short"
+    confirmedTime  := f_getTimeString(time)
+
+// --- LÓGICA DE EXIBIÇÃO (Live Signal > Confirmed Signal) ---
+// Se houver sinal na barra atual, mostre; se não houver, mostre o último que fechou no gráfico.
+displayDir   = (isLongSig) ? "Long" : (isShortSig ? "Short" : confirmedDir)
+displayType  = (isLongSig) ? longType : (isShortSig ? shortType : confirmedType)
+displayEntry = (isLongSig) ? longEntry : (isShortSig ? shortEntry : confirmedEntry)
+displayStop  = (isLongSig) ? longStop : (isShortSig ? shortStop : confirmedStop)
+displayRisk  = (isLongSig) ? longRisk : (isShortSig ? shortRisk : confirmedRisk)
+displayTime  = (isLongSig or isShortSig) ? f_getTimeString(time) : confirmedTime
+
+displayTgt2  = (displayDir == "Long") ? displayEntry + (displayRisk * 2) : displayEntry - (displayRisk * 2)
+displayTgt4  = (displayDir == "Long") ? displayEntry + (displayRisk * 4) : displayEntry - (displayRisk * 4)
+displayTgt6  = (displayDir == "Long") ? displayEntry + (displayRisk * 6) : displayEntry - (displayRisk * 6)
+
+// Dashboard Infopanel (Coluna Fantasma no final)
+var table dashboard = table.new(position.top_right, 3, 10, bgcolor=color.new(color.black, 100), border_width=0)
+bgDataCell = color.new(color.black, 30)
+
+if barstate.islast
+    // Títulos (Coluna 0)
+    table.cell(dashboard, 0, 0, "AlgoAlpha", text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 0, 1, "Último Sinal", text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 0, 2, "Tipo P.B.", text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 0, 3, "Entrada", text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 0, 4, "Stop Loss", text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 0, 5, "Risco", text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 0, 6, "Alvo 1:2", text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 0, 7, "Alvo 1:4", text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 0, 8, "Alvo 1:6", text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 0, 9, "Horário", text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+    
+    mtfStatusText  = "Conflito"
+    mtfStatusColor = color.gray
+    
+    if (s1 == 1 and s2 == 1 and s3 == 1)
+        mtfStatusText  := "Alta"
+        mtfStatusColor := color.green
+    else if (s1 == -1 and s2 == -1 and s3 == -1)
+        mtfStatusText  := "Baixa"
+        mtfStatusColor := color.red
+        
+    if not usarMTF
+        mtfStatusText := mtfStatusText + " (Off)"
+    
+    dirColor  = (displayDir == "Long") ? color.green : ((displayDir == "Short") ? color.red : color.gray)
+    typeColor = (displayType == "A+") ? color.green : ((displayType == "B") ? color.orange : color.maroon)
+    
+    // Dados (Coluna 1)
+    table.cell(dashboard, 1, 0, mtfStatusText, text_color=mtfStatusColor, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 1, 1, displayDir, text_color=dirColor, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 1, 2, displayType, text_color=typeColor, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 1, 3, str.tostring(displayEntry, "#.##"), text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 1, 4, str.tostring(displayStop, "#.##"), text_color=color.red, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 1, 5, str.tostring(displayRisk, "#.##"), text_color=color.yellow, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 1, 6, str.tostring(displayTgt2, "#.##"), text_color=color.green, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 1, 7, str.tostring(displayTgt4, "#.##"), text_color=color.teal, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 1, 8, str.tostring(displayTgt6, "#.##"), text_color=color.aqua, text_size=size.small, bgcolor=bgDataCell)
+    table.cell(dashboard, 1, 9, displayTime, text_color=color.white, text_size=size.small, bgcolor=bgDataCell)
+
+    // Coluna Fantasma (Coluna 2) p/ empurrar a tabela
+    table.cell(dashboard, 2, 0, "", width=afastarTabela, bgcolor=color.new(color.white, 100))
+    table.cell(dashboard, 2, 1, "", width=afastarTabela, bgcolor=color.new(color.white, 100))
+    table.cell(dashboard, 2, 2, "", width=afastarTabela, bgcolor=color.new(color.white, 100))
+    table.cell(dashboard, 2, 3, "", width=afastarTabela, bgcolor=color.new(color.white, 100))
+    table.cell(dashboard, 2, 4, "", width=afastarTabela, bgcolor=color.new(color.white, 100))
+    table.cell(dashboard, 2, 5, "", width=afastarTabela, bgcolor=color.new(color.white, 100))
+    table.cell(dashboard, 2, 6, "", width=afastarTabela, bgcolor=color.new(color.white, 100))
+    table.cell(dashboard, 2, 7, "", width=afastarTabela, bgcolor=color.new(color.white, 100))
+    table.cell(dashboard, 2, 8, "", width=afastarTabela, bgcolor=color.new(color.white, 100))
+    table.cell(dashboard, 2, 9, "", width=afastarTabela, bgcolor=color.new(color.white, 100))
