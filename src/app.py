@@ -24,6 +24,7 @@ import action_plan
 import auth
 import billing
 import coach_ai
+import daily_plan
 import i18n
 import ingest_core
 import metrics
@@ -1007,6 +1008,187 @@ def _load_action_items() -> pd.DataFrame:
     return action_plan.list_items()
 
 
+@st.cache_data(ttl=30)
+def _load_day_plans(plan_date_iso: str) -> pd.DataFrame:
+    plan_date = date.fromisoformat(plan_date_iso) if plan_date_iso else None
+    return daily_plan.list_plans(plan_date=plan_date)
+
+
+def render_day_plan() -> None:
+    st.subheader(t("dayplan.title"))
+    st.caption(t("dayplan.caption"))
+
+    today_chicago = pd.Timestamp.now(tz="America/Chicago").date()
+    if "_day_plan_date" not in st.session_state:
+        st.session_state["_day_plan_date"] = today_chicago
+
+    col_date, col_today, _ = st.columns([2, 1, 4])
+    selected_date = col_date.date_input(
+        t("dayplan.date_label"),
+        value=st.session_state["_day_plan_date"],
+        format="DD/MM/YYYY",
+        key="_day_plan_date_input",
+    )
+    if col_today.button(
+        t("dayplan.btn_today_chicago"),
+        use_container_width=True,
+        key="day_plan_today_chicago",
+    ):
+        st.session_state["_day_plan_date"] = today_chicago
+        st.rerun()
+    st.session_state["_day_plan_date"] = selected_date
+
+    try:
+        original = _load_day_plans(selected_date.isoformat())
+    except Exception as e:
+        msg = str(e)
+        if "daily_plans" in msg or "does not exist" in msg.lower():
+            st.error(t("dayplan.err_table_missing"))
+        else:
+            st.error(t("dayplan.err_load", msg=msg))
+        return
+
+    plans_count = len(original)
+    total_max_size = int(original["max_size"].fillna(0).sum()) if not original.empty else 0
+
+    def _row_usd(row: pd.Series, points_col: str) -> float | None:
+        return daily_plan.compute_usd(
+            row.get(points_col), row.get("max_size"), row.get("contract_name"),
+        )
+
+    if not original.empty:
+        total_stop_usd = sum(
+            v for v in (
+                _row_usd(r, "stop_points") for _, r in original.iterrows()
+            ) if v is not None
+        )
+        total_target_usd = sum(
+            v for v in (
+                _row_usd(r, "target_points") for _, r in original.iterrows()
+            ) if v is not None
+        )
+    else:
+        total_stop_usd = 0.0
+        total_target_usd = 0.0
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric(t("dayplan.kpi.plans_count"), plans_count)
+    k2.metric(t("dayplan.kpi.total_max_size"), total_max_size)
+    k3.metric(t("dayplan.kpi.total_stop_usd"), f"${total_stop_usd:,.2f}")
+    k4.metric(t("dayplan.kpi.total_target_usd"), f"${total_target_usd:,.2f}")
+
+    st.caption(t("dayplan.usd_hint"))
+
+    st.session_state["_day_plan_original"] = original.copy()
+
+    long_label = t("dayplan.direction.long")
+    short_label = t("dayplan.direction.short")
+
+    display = original.copy()
+    if not display.empty:
+        display["direction"] = display["direction"].map(
+            lambda v: long_label if v == "Long" else (short_label if v == "Short" else v)
+        )
+        display["stop_usd"] = display.apply(
+            lambda r: _row_usd(r, "stop_points"), axis=1,
+        )
+        display["target_usd"] = display.apply(
+            lambda r: _row_usd(r, "target_points"), axis=1,
+        )
+    else:
+        display["stop_usd"] = pd.Series(dtype="float64")
+        display["target_usd"] = pd.Series(dtype="float64")
+
+    edited = st.data_editor(
+        display,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_order=[
+            "contract_name", "direction", "max_size",
+            "entry_trigger",
+            "stop_points", "stop_usd",
+            "target_points", "target_usd",
+            "notes",
+        ],
+        column_config={
+            "contract_name": st.column_config.TextColumn(
+                t("dayplan.col.contract"), required=True, width="small",
+            ),
+            "direction": st.column_config.SelectboxColumn(
+                t("dayplan.col.direction"),
+                options=[long_label, short_label],
+                required=True, width="small",
+            ),
+            "max_size": st.column_config.NumberColumn(
+                t("dayplan.col.max_size"), min_value=1, step=1,
+                required=True, width="small",
+            ),
+            "entry_trigger": st.column_config.TextColumn(
+                t("dayplan.col.entry_trigger"), width="medium",
+            ),
+            "stop_points": st.column_config.NumberColumn(
+                t("dayplan.col.stop_points"), step=0.25, width="small",
+            ),
+            "stop_usd": st.column_config.NumberColumn(
+                t("dayplan.col.stop_usd"),
+                format="$%.2f", disabled=True, width="small",
+                help=t("dayplan.col.stop_usd_help"),
+            ),
+            "target_points": st.column_config.NumberColumn(
+                t("dayplan.col.target_points"), step=0.25, width="small",
+            ),
+            "target_usd": st.column_config.NumberColumn(
+                t("dayplan.col.target_usd"),
+                format="$%.2f", disabled=True, width="small",
+                help=t("dayplan.col.target_usd_help"),
+            ),
+            "notes": st.column_config.TextColumn(
+                t("dayplan.col.notes"), width="medium",
+            ),
+            "id": None, "plan_date": None, "created_at": None, "updated_at": None,
+        },
+        key=f"day_plan_editor_{selected_date.isoformat()}",
+    )
+
+    col_save, col_reload, _ = st.columns([1, 1, 4])
+    save_clicked = col_save.button(
+        t("dayplan.btn_save"),
+        type="primary",
+        use_container_width=True,
+        key="day_plan_save",
+    )
+    reload_clicked = col_reload.button(
+        t("dayplan.btn_reload"),
+        use_container_width=True,
+        key="day_plan_reload",
+    )
+
+    if reload_clicked:
+        _load_day_plans.clear()
+        st.rerun()
+
+    if save_clicked:
+        edited_for_save = edited.copy()
+        if not edited_for_save.empty:
+            edited_for_save["direction"] = edited_for_save["direction"].map(
+                lambda v: "Long" if v == long_label else ("Short" if v == short_label else v)
+            )
+        with st.spinner(t("dayplan.saving")):
+            result = daily_plan.upsert_plans(
+                original, edited_for_save, default_date=selected_date,
+            )
+        if result["ok"]:
+            st.success(
+                t("dayplan.save_ok",
+                  ins=result['inserted'], upd=result['updated'], dele=result['deleted'])
+            )
+            _load_day_plans.clear()
+            st.rerun()
+        else:
+            st.error(t("dayplan.save_err", err=result['error']))
+
+
 def render_action_plan() -> None:
     st.subheader(t("plan.title"))
     st.caption(t("plan.caption"))
@@ -1367,8 +1549,8 @@ overview = metrics.compute_overview(df_with_groups)
 
 # --- Abas --------------------------------------------------------------------
 
-tab_dash, tab_coach, tab_plan, tab_import, tab_account = st.tabs(
-    [t("tab.dashboard"), t("tab.coach"), t("tab.plan"),
+tab_dash, tab_coach, tab_dayplan, tab_plan, tab_import, tab_account = st.tabs(
+    [t("tab.dashboard"), t("tab.coach"), t("tab.dayplan"), t("tab.plan"),
      t("tab.import"), t("tab.account")]
 )
 
@@ -1385,6 +1567,9 @@ with tab_coach:
         result_filter=result_filter,
     )
     render_coach(df_with_groups, groups, df_all, filter_ctx)
+
+with tab_dayplan:
+    render_day_plan()
 
 with tab_plan:
     render_action_plan()
