@@ -459,6 +459,9 @@
   "live.section.install": "Instalar la extensión",
   "live.install.caption": "Solo Chrome, MV3. Load unpacked mientras no publicamos en la Chrome Web Store.",
   "live.install.steps": "1. Descarga el `.zip` de la extensión en esta página.\n2. Descomprime en una carpeta que vas a mantener (la extensión se carga desde esa ruta).\n3. Abre `chrome://extensions`, activa el Modo Desarrollador (esquina superior derecha).\n4. Haz clic en \"Cargar descomprimida\" y elige la carpeta.\n5. Abre el popup, pega el JWT de la pestaña Cuenta, haz clic en Guardar token.\n6. Abre https://topstepx.com/trade — tu posición debería aparecer aquí en pocos segundos.",
+  "live.install.latest_version": "Última versión disponible: v{version} (lanzada el {released}).",
+  "live.install.release_notes_label": "Notas de la versión",
+  "live.install.download_btn": "Descargar v{version}",
 
   "live.alerts.unread_count": "{n} alerta(s) sin leer.",
   "live.alerts.mark_all_read": "Marcar todos como leídos",

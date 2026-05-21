@@ -41,6 +41,7 @@ Aplicar manualmente no SQL Editor na ordem (todos idempotentes):
 5. `PRD/m9_features.sql`
 6. `PRD/m10_risk_guard_trigger.sql`
 7. `PRD/m11_live_snapshots_unique.sql`
+8. `PRD/m12_app_releases.sql`
 
 ## Edge Functions
 

@@ -459,6 +459,9 @@
   "live.section.install": "Install the extension",
   "live.install.caption": "Chrome only, MV3. Load unpacked while we don't publish to the Chrome Web Store.",
   "live.install.steps": "1. Download the extension `.zip` from this page.\n2. Unzip into a folder you'll keep (the extension reloads from this path).\n3. Open `chrome://extensions`, enable Developer Mode (top-right toggle).\n4. Click \"Load unpacked\" and select the unzipped folder.\n5. Open the popup, paste the JWT from the Account tab, click Save token.\n6. Open https://topstepx.com/trade and the position should appear here within a few seconds.",
+  "live.install.latest_version": "Latest available: v{version} (released {released}).",
+  "live.install.release_notes_label": "Release notes",
+  "live.install.download_btn": "Download v{version}",
 
   "live.alerts.unread_count": "{n} unread alert(s).",
   "live.alerts.mark_all_read": "Mark all as read",

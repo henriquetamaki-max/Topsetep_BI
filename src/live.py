@@ -24,6 +24,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import alerts as alerts_mod
+import app_releases
 import auth
 import billing
 import timezones
@@ -254,6 +255,26 @@ def _inject_web_notifications(user_id: str) -> None:
 def _section_install() -> None:
     st.markdown(f"#### {t('live.section.install')}")
     st.caption(t("live.install.caption"))
+
+    latest = app_releases.get_latest("extension")
+    if latest:
+        ver = latest.get("version", "?")
+        released = str(latest.get("released_at", ""))[:10]
+        # Badge com versao mais recente publicada
+        st.info(
+            t("live.install.latest_version", version=ver, released=released),
+            icon="⬇️",
+        )
+        notes = latest.get("release_notes")
+        if notes:
+            with st.expander(t("live.install.release_notes_label")):
+                st.markdown(notes)
+        dl = latest.get("download_url")
+        if dl:
+            st.markdown(
+                f"[{t('live.install.download_btn', version=ver)}]({dl})"
+            )
+
     st.markdown(t("live.install.steps"))
 
 
