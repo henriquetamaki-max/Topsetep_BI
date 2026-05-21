@@ -133,7 +133,7 @@ def upsert_items(original: pd.DataFrame, edited: pd.DataFrame) -> dict:
         for rid, payload in to_update:
             # updated_at: Postgres aceita default explícito via raw expression,
             # mas pelo PostgREST mandamos timestamp atual em ISO.
-            payload["updated_at"] = pd.Timestamp.utcnow().isoformat()
+            payload["updated_at"] = pd.Timestamp.now("UTC").isoformat()
             client.table(TABLE).update(payload).eq("id", rid).execute()
             updated += 1
         if to_delete:

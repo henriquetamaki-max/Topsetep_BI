@@ -353,7 +353,7 @@ def upsert_plans(
             client.table(TABLE).insert(to_insert).execute()
             inserted = len(to_insert)
         for rid, payload in to_update:
-            payload["updated_at"] = pd.Timestamp.utcnow().isoformat()
+            payload["updated_at"] = pd.Timestamp.now("UTC").isoformat()
             client.table(TABLE).update(payload).eq("id", rid).execute()
             updated += 1
         if to_delete:
