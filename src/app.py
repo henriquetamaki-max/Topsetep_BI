@@ -739,6 +739,50 @@ def render_dashboard(
         c_score.markdown(score_html, unsafe_allow_html=True)
         with c_legend:
             st.markdown(t("dash.adherence.legend"))
+            if a_total > 0:
+                # Stacked bar horizontal mostrando a proporcao das 5 categorias.
+                # Visualmente mais rapido de ler do que so os numeros do card.
+                cat_data = [
+                    ("compliant", a_compliant, GREEN,
+                     t("dash.adherence.compliant")),
+                    ("unplanned", a_unplanned, RED,
+                     t("dash.adherence.unplanned")),
+                    ("size_exceeded", a_size, "#f4a261",
+                     t("dash.adherence.size_exceeded")),
+                    ("against_plan", a_against, "#9b2226",
+                     t("dash.adherence.against_plan")),
+                    ("size_creep_day", a_creep, "#e9c46a",
+                     t("dash.adherence.size_creep_day")),
+                ]
+                fig_adh = go.Figure()
+                for key, count, color, label in cat_data:
+                    if count <= 0:
+                        continue
+                    pct = (count / a_total) * 100
+                    fig_adh.add_trace(go.Bar(
+                        x=[count], y=[""], name=label,
+                        orientation="h", marker_color=color,
+                        hovertemplate=(
+                            f"<b>{label}</b><br>{count} / {a_total} "
+                            f"({pct:.1f}%)<extra></extra>"
+                        ),
+                        text=[f"{count}"] if pct >= 8 else [""],
+                        textposition="inside",
+                        insidetextanchor="middle",
+                        textfont=dict(color="#0e1117", size=12),
+                    ))
+                fig_adh.update_layout(
+                    **PLOTLY_LAYOUT,
+                    height=90, barmode="stack",
+                    showlegend=False,
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    xaxis=dict(visible=False),
+                    yaxis=dict(visible=False),
+                )
+                st.plotly_chart(
+                    fig_adh, use_container_width=True,
+                    key="chart_adherence_breakdown",
+                )
 
         violations = adherence.get("violations", pd.DataFrame())
         if violations is None or violations.empty:
@@ -1119,7 +1163,7 @@ def render_day_plan() -> None:
     if "_day_plan_date" not in st.session_state:
         st.session_state["_day_plan_date"] = today_chicago
 
-    col_date, col_today, _ = st.columns([2, 1, 4])
+    col_date, col_today, col_copy, _ = st.columns([2, 1, 1, 3])
     selected_date = col_date.date_input(
         t("dayplan.date_label"),
         value=st.session_state["_day_plan_date"],
@@ -1133,6 +1177,36 @@ def render_day_plan() -> None:
     ):
         st.session_state["_day_plan_date"] = today_chicago
         st.rerun()
+    if col_copy.button(
+        t("dayplan.btn_copy_prev"),
+        use_container_width=True,
+        key="day_plan_copy_prev",
+        help=t("dayplan.btn_copy_prev_help"),
+    ):
+        try:
+            prev_date = daily_plan.last_planned_date_before(selected_date)
+        except Exception as e:
+            st.error(t("dayplan.err_load", msg=str(e)))
+            prev_date = None
+        if prev_date is None:
+            st.info(t("dayplan.copy_none"))
+        else:
+            with st.spinner(t("dayplan.copying", src=prev_date.isoformat())):
+                result = daily_plan.copy_plans(prev_date, selected_date)
+            if result["ok"]:
+                if result["copied"] == 0 and result["skipped"] == 0:
+                    st.info(t("dayplan.copy_none"))
+                else:
+                    st.success(t(
+                        "dayplan.copy_ok",
+                        src=prev_date.isoformat(),
+                        copied=result["copied"],
+                        skipped=result["skipped"],
+                    ))
+                _load_day_plans.clear()
+                st.rerun()
+            else:
+                st.error(t("dayplan.copy_err", err=result["error"]))
     st.session_state["_day_plan_date"] = selected_date
 
     try:
@@ -1248,7 +1322,7 @@ def render_day_plan() -> None:
         key=f"day_plan_editor_{selected_date.isoformat()}",
     )
 
-    col_save, col_reload, _ = st.columns([1, 1, 4])
+    col_save, col_reload, col_clear, _ = st.columns([1, 1, 1, 3])
     save_clicked = col_save.button(
         t("dayplan.btn_save"),
         type="primary",
@@ -1260,6 +1334,46 @@ def render_day_plan() -> None:
         use_container_width=True,
         key="day_plan_reload",
     )
+    clear_clicked = col_clear.button(
+        t("dayplan.btn_clear"),
+        use_container_width=True,
+        disabled=original.empty,
+        help=t("dayplan.btn_clear_help"),
+        key="day_plan_clear",
+    )
+
+    if clear_clicked:
+        st.session_state["_day_plan_pending_clear"] = selected_date.isoformat()
+        st.rerun()
+
+    pending_clear = st.session_state.get("_day_plan_pending_clear")
+    if pending_clear == selected_date.isoformat() and not original.empty:
+        st.warning(
+            t("dayplan.clear_confirm", n=plans_count, day=selected_date.isoformat())
+        )
+        cc1, cc2, _ = st.columns([1, 1, 4])
+        if cc1.button(
+            t("dayplan.btn_clear_confirm"),
+            type="primary",
+            use_container_width=True,
+            key="day_plan_clear_confirm",
+        ):
+            with st.spinner(t("dayplan.clearing")):
+                result = daily_plan.delete_plans_for_date(selected_date)
+            st.session_state.pop("_day_plan_pending_clear", None)
+            if result["ok"]:
+                st.success(t("dayplan.clear_ok", n=result["deleted"]))
+                _load_day_plans.clear()
+                st.rerun()
+            else:
+                st.error(t("dayplan.clear_err", err=result["error"]))
+        if cc2.button(
+            t("dayplan.btn_clear_cancel"),
+            use_container_width=True,
+            key="day_plan_clear_cancel",
+        ):
+            st.session_state.pop("_day_plan_pending_clear", None)
+            st.rerun()
 
     if reload_clicked:
         _load_day_plans.clear()

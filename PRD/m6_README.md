@@ -16,6 +16,12 @@ Sete migrations, aplicar **na ordem listada** no Supabase SQL Editor (após `sch
 
 Os arquivos 4–7 são independentes entre si, mas o 4 depende do enum criado no 3.
 
+**Migrations subsequentes** (também aplicar nesta ordem):
+
+8. `m9_features.sql` — habilita `features.live_monitor=true` em pro/admin/trial.
+9. `m10_risk_guard_trigger.sql` — trigger `risk_guard_eval` em `live_snapshots`.
+10. `m11_live_snapshots_unique.sql` — UNIQUE para idempotência da Edge Function `live-ingest`.
+
 ## Após aplicar as 7 migrations
 
 No Supabase SQL Editor, rodar **uma vez** para agendar o purge de `live_snapshots`:

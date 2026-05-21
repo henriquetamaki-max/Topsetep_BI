@@ -45,6 +45,7 @@ INCLUDE_PATTERNS = [
     "popup.css",
     "selectors.json",
     "icons/**/*",
+    "_locales/**/*",
 ]
 
 

@@ -29,13 +29,15 @@ _TZ_SP = ZoneInfo("America/Sao_Paulo")
 
 
 def _supabase() -> Client:
-    """Cliente Supabase com a sessão do usuário logado (RLS ativa)."""
+    """Alias historico para `auth.get_client()`. Mantido para nao quebrar
+    imports de modulos legados; codigo novo deve chamar `auth.get_client()`
+    diretamente."""
     return auth.get_client()
 
 
 def _current_user_id() -> str | None:
-    user = auth.current_user()
-    return user["id"] if user else None
+    """Alias historico para `auth.current_user_id()`. Ver `_supabase` acima."""
+    return auth.current_user_id()
 
 
 @dataclass

@@ -30,10 +30,6 @@ import timezones
 from i18n import t
 
 
-def _supabase():
-    return auth.get_client()
-
-
 @st.cache_data(ttl=2, show_spinner=False)
 def _fetch_last_snapshot(_user_id: str) -> dict[str, Any] | None:
     """Ultimo snapshot do usuario corrente.
@@ -43,7 +39,7 @@ def _fetch_last_snapshot(_user_id: str) -> dict[str, Any] | None:
     """
     try:
         r = (
-            _supabase().table("live_snapshots")
+            auth.get_client().table("live_snapshots")
             .select("*")
             .order("snapshot_at", desc=True)
             .limit(1)
@@ -193,8 +189,9 @@ def _inject_web_notifications(user_id: str) -> None:
         return
 
     # Os valores aqui sao todos de fontes confiaveis (Supabase Auth + secrets
-    # do app), mas usamos json.dumps para escape robusto — evita qualquer
-    # surpresa caso uma fonte futura inclua aspas / </script> no payload.
+    # do app), mas usamos json.dumps + escape de `</` para `<\/` para evitar
+    # que qualquer valor futuro contendo `</script>` quebre o bloco. Padrao
+    # SSR de React/Next.js para inline JSON em <script>.
     cfg_literal = json.dumps({
         "supaUrl": supa_url,
         "supaAnon": supa_anon,
@@ -202,7 +199,7 @@ def _inject_web_notifications(user_id: str) -> None:
         "userId": user_id,
         "channel": f"bi-alerts-{user_id}",
         "filter": f"user_id=eq.{user_id}",
-    })
+    }).replace("</", "<\\/")
 
     components.html(
         f"""
@@ -284,4 +281,18 @@ def render_live_tab(user: dict, plan: dict | None) -> None:
 
     # Componente JS embutido que dispara Web Notifications quando uma nova
     # linha em `alerts` chega via Supabase Realtime. Render UMA vez por
-    # carregamento da aba — o st
+    # carregamento da aba — o st_autorefresh recria o iframe a cada 3s mas
+    # o supabase-js dentro dele resubscreve sem custo.
+    _inject_web_notifications(user_id)
+
+    snap = _fetch_last_snapshot(user_id)
+    alerts_df = _fetch_recent_alerts(user_id, limit=20)
+
+    _section_status(snap)
+    st.divider()
+    _section_position(snap)
+    _section_pnl(snap)
+    st.divider()
+    _section_alerts(alerts_df)
+    st.divider()
+    _section_install()

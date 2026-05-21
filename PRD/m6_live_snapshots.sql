@@ -47,6 +47,13 @@ create policy live_snapshots_owner_all on public.live_snapshots
 -- ---------------------------------------------------------------------------
 -- Funcao de purge (> 7 dias). security definer para o pg_cron rodar como dona.
 -- O agendamento (cron.schedule) e' feito separadamente — ver PRD/m6_README.md.
+--
+-- ATENCAO: esta funcao apaga snapshots de TODOS os usuarios em uma unica
+-- transacao. Nao chamar manualmente em horario operacional (mercado aberto)
+-- — pode causar lock breve em live_snapshots e atrasar INSERTs da extensao.
+-- O job pg_cron agendado para 03:00 UTC e' o caminho seguro. Para purge
+-- ad-hoc emergencial, considere `delete ... where user_id = '<uid>'` para
+-- limitar o escopo.
 -- ---------------------------------------------------------------------------
 drop function if exists public.purge_old_live_snapshots();
 create function public.purge_old_live_snapshots()

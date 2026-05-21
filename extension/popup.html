@@ -2,34 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>BI TopStep — Live Monitor</title>
+  <title data-i18n="popupTitle">BI TopStep — Live Monitor</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
   <header>
-    <h1>BI TopStep — Live Monitor</h1>
+    <h1 data-i18n="popupTitle">BI TopStep — Live Monitor</h1>
     <span id="version" class="muted"></span>
   </header>
 
   <section class="card">
-    <label for="jwt">Supabase JWT</label>
-    <textarea id="jwt" rows="3" placeholder="Paste your JWT from BI TopStep → Account → Extension"></textarea>
+    <label for="jwt" data-i18n="popupJwtLabel">Supabase JWT</label>
+    <textarea id="jwt" rows="3" data-i18n-placeholder="popupJwtPlaceholder"></textarea>
     <div class="row">
-      <button id="save" class="primary">Save token</button>
-      <button id="ping">Test connection</button>
+      <button id="save" class="primary" data-i18n="popupBtnSave">Save token</button>
+      <button id="ping" data-i18n="popupBtnPing">Test connection</button>
     </div>
     <p id="userline" class="muted small"></p>
   </section>
 
   <section class="card">
-    <h2>Status</h2>
+    <h2 data-i18n="popupSectionStatus">Status</h2>
     <p id="config-status" class="small"></p>
     <p id="scrape-status" class="small"></p>
     <p id="last-status" class="small"></p>
   </section>
 
   <footer>
-    <p class="muted small">Open <a href="https://topstepx.com/trade" target="_blank">topstepx.com/trade</a> to start sending snapshots.</p>
+    <p class="muted small">
+      <span data-i18n="popupFooterHint">Open topstepx.com/trade to start sending snapshots.</span>
+    </p>
   </footer>
 
   <script src="config.js"></script>

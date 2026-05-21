@@ -11,7 +11,7 @@ from datetime import date
 
 import pandas as pd
 
-from coach_ai import _current_user_id, _supabase
+import auth
 
 TABLE = "action_items"
 
@@ -29,7 +29,7 @@ def list_items() -> pd.DataFrame:
     prioridade. Devolve DataFrame com `ALL_COLUMNS` (vazio se a tabela tiver
     sido criada mas estiver sem dados).
     """
-    client = _supabase()
+    client = auth.get_client()
     r = client.table(TABLE).select("*").execute()
     rows = r.data or []
     df = pd.DataFrame(rows)
@@ -85,7 +85,7 @@ def upsert_items(original: pd.DataFrame, edited: pd.DataFrame) -> dict:
     delete e devolve contadores.
     """
     try:
-        client = _supabase()
+        client = auth.get_client()
     except Exception as e:
         return {"ok": False, "inserted": 0, "updated": 0, "deleted": 0, "error": str(e)}
 
@@ -120,7 +120,7 @@ def upsert_items(original: pd.DataFrame, edited: pd.DataFrame) -> dict:
     inserted = updated = deleted = 0
     try:
         if to_insert:
-            user_id = _current_user_id()
+            user_id = auth.current_user_id()
             if not user_id:
                 return {
                     "ok": False, "inserted": 0, "updated": 0, "deleted": 0,

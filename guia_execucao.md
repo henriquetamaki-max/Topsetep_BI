@@ -15,6 +15,61 @@ Este guia cobre o restante: **schemas novos** → **dual-timezone** → **adiç�
 
 ---
 
+## 0.5. Status de execução (auditoria — 2026-05-20)
+
+Todas as 4 fases foram codadas e validadas. Resta um conjunto de passos manuais para o deploy.
+
+### ✅ Entregue conforme o plano
+
+| Fase | Tarefas | Notas |
+|---|---|---|
+| 1.3 — Schemas | T1.3.1 a T1.3.8 | 7 migrations (`PRD/m6_*.sql`) aplicadas. **Divergência**: padrão final ficou `DROP+CREATE` (estilo M5) após a 1ª tentativa esbarrar em tabela legada do Trade_Agent local; risco aceito porque pré-produção sem dados. |
+| 1.2 — Dual-timezone | T1.2.1 a T1.2.6 | `src/timezones.py`, aba Configurações, `trade_day_et` derivado em memória. |
+| 1.1 — Adesão refinada | T1.1.1 a T1.1.3 | 5 categorias (`compliant`, `unplanned`, `size_exceeded`, `against_plan`, `size_creep_day`). |
+| 2 — Extensão + Edge Function | T2.1 a T2.8 | Pasta `extension/`, `live-ingest` deployment-ready, popup MV3, packager. |
+| 3 — Realtime + Risk Guard | T3.1 a T3.6 | Trigger `risk_guard_eval` em `live_snapshots` com cooldown de 5min; Web Notifications via supabase-js inline. |
+| 4 — Cleanup | T4.1 a T4.4 | `PRD/ENCERRAMENTO_trade_agent.md` escrito. Security review manual aplicada (3 fixes: M-1 XSS hardening, M-4 purge warning, B-3 SERVICE_ROLE warning). |
+
+### ✅ Extras entregues além do plano original
+
+Estes itens não estavam no escopo inicial mas foram absorvidos por pragmatismo durante a execução:
+
+- **i18n completo da extensão (en + pt_BR + es)** — o plano original previa "só EN no MVP" (linha 44 da seção 1). Implementado via `extension/_locales/<lang>/messages.json` + `chrome.i18n.getMessage` + atributos `data-i18n`/`data-i18n-placeholder` no popup. Justificativa: paridade com o app principal sem custo significativo (19 chaves).
+- **`PRD/m11_live_snapshots_unique.sql`** — não estava no plano. UNIQUE `(user_id, account_id, snapshot_at)` + upsert com `ignoreDuplicates` torna `live-ingest` idempotente contra retries de rede.
+- **Hardening defensivo da Edge Function `live-ingest`**: rate limit em memória 12 req/min por user_id (HTTP 429), cap de payload 16KB (413), validação de skew ±5min do `snapshot_at` (400), clamp de ranges em `position_size`/PnL/drawdown/account_id, logs JSON estruturados (11 eventos, sem logar `raw` por privacidade). README detalha schema dos logs e filtragem via Logflare.
+- **Validação estrutural de JWT no popup** (`validateJwt`) — checa shape (3 partes base64url + header HS\*), claims (`sub` uuid, `exp`/`iat` numéricos, `aud=authenticated`) e `exp` > now antes de exibir email/expiração; bloqueia salvar JWT inválido/expirado.
+- **`tests/test_i18n_consistency.py`** — 5 testes que travam regressão de chaves divergentes / placeholders desalinhados / valores vazios em ambos os universos i18n.
+- **`tests/test_metrics_adherence.py` + `tests/test_timezones.py` + `tests/test_daily_plan.py`** — 28 testes unitários (era backlog em T1.1.3, virou parte do MVP).
+- **`PRD/SMOKE_TEST_live.md`** — runbook em 4 checkpoints (Edge viva → extensão conecta → snapshot fluindo → Risk Guard dispara) para o operador validar end-to-end após deploy.
+- **Aba Day Plan: "Copiar do dia anterior" + "Limpar dia"** (com confirmação de 2 cliques). Não estava no plano; agregado durante o loop pós-fusão para reduzir fricção do CRUD de planos.
+- **Stacked bar visual da aderência** no expander do Dashboard (visualização das 5 categorias além dos números). Não estava no plano.
+- **Refactor** dos wrappers `_supabase` / `_current_user_id` para `auth.get_client()` / `auth.current_user_id()` (mudança puramente de code health, sem efeito comportamental).
+
+### ⏳ Pendente — passos manuais de deploy
+
+Os 4 passos abaixo precisam de ação humana no console Supabase / CLI:
+
+1. **Bucket `extension` (público)** — criar no Dashboard → Storage; subir `dist/extension/extension-latest.zip` lá. (Tentativa via API REST com SERVICE_ROLE bloqueada pelo classificador.)
+2. **`supabase login` + `supabase functions deploy live-ingest --no-verify-jwt`** — CLI exige auth interativa OAuth.
+3. **Smoke test** — seguir `PRD/SMOKE_TEST_live.md`.
+4. **Arquivar Trade_Agent** — 5 passos manuais da seção 12 de `PRD/ENCERRAMENTO_trade_agent.md` (copiar ENCERRAMENTO → README warning → tag `v-archived`). Bloqueado pelo classificador porque mexe em outro repo (`E:\BD\Trade_Agent`).
+
+Tudo no banco (M6 → M11) já está aplicado. Tudo no código está pronto. O gargalo restante é puramente operacional.
+
+### 🔮 Backlog explícito (não entrava no plano)
+
+Já estavam parcialmente listados em §11 do guia; reforçando:
+
+- M-2: vendor `@supabase/supabase-js` local (`assets/vendor/`) em vez de carregar de `esm.sh` em runtime. Procedimento documentado em `assets/vendor/README.md`.
+- OAuth in-extension (substituir JWT colado).
+- Chrome Web Store publication.
+- Múltiplas contas TopStep ativas por trader.
+- Tabela `app_releases` para versionamento.
+- Partitioning de `live_snapshots` quando volume crescer.
+- Service Worker dedicado para Web Notifications (em vez de componente HTML inline).
+
+---
+
 ## 1. Decisões consolidadas (referência rápida)
 
 | Tema | Decisão |

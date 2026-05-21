@@ -90,6 +90,15 @@ def current_user() -> dict | None:
     return sess["user"] if sess else None
 
 
+def current_user_id() -> str | None:
+    """UUID do usuario logado, ou None se nao ha sessao. Atalho para
+    `current_user()["id"]` — usado por modulos CRUD que precisam injetar
+    `user_id` em inserts (RLS exige). RLS confirma server-side, este helper
+    so' otimiza o caminho cliente."""
+    user = current_user()
+    return user["id"] if user else None
+
+
 def _session_to_dict(session) -> dict:
     """Converte o objeto Session do gotrue em dict serializável."""
     user = session.user

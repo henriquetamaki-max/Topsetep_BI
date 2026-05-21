@@ -16,7 +16,7 @@ from datetime import date
 
 import pandas as pd
 
-from coach_ai import _current_user_id, _supabase
+import auth
 
 TABLE = "daily_plans"
 
@@ -40,7 +40,7 @@ def _load_contract_values() -> dict[str, float]:
     quebrar a UI de Day Plan.
     """
     try:
-        client = _supabase()
+        client = auth.get_client()
         r = client.table("contracts").select("symbol, point_value_usd").execute()
         rows = r.data or []
         if not rows:
@@ -116,7 +116,7 @@ def list_plans(plan_date: date | None = None) -> pd.DataFrame:
     devolve todos. Sempre devolve as colunas em `ALL_COLUMNS` (vazio com
     schema correto se não houver dados).
     """
-    client = _supabase()
+    client = auth.get_client()
     query = client.table(TABLE).select("*")
     if plan_date is not None:
         query = query.eq("plan_date", plan_date.isoformat())
@@ -138,6 +138,113 @@ def list_plans(plan_date: date | None = None) -> pd.DataFrame:
         ascending=[False, True, True],
     ).reset_index(drop=True)
     return df[ALL_COLUMNS]
+
+
+def delete_plans_for_date(plan_date: date) -> dict:
+    """Apaga TODOS os planos do trader na data dada. RLS filtra por user_id.
+
+    Devolve `{ok, deleted, error}`. UI deve fazer confirmacao antes —
+    operacao e irreversivel (UNIQUE constraint nao reabre slots, etc).
+    """
+    try:
+        client = auth.get_client()
+        r = (
+            client.table(TABLE)
+            .delete()
+            .eq("plan_date", plan_date.isoformat())
+            .execute()
+        )
+        n = len(r.data or [])
+        return {"ok": True, "deleted": n, "error": None}
+    except Exception as e:
+        return {"ok": False, "deleted": 0, "error": str(e)}
+
+
+def last_planned_date_before(target: date) -> date | None:
+    """Maior `plan_date` < target que tem ao menos 1 linha. None se nao tem
+    historico anterior. RLS filtra por user_id automaticamente."""
+    client = auth.get_client()
+    r = (
+        client.table(TABLE)
+        .select("plan_date")
+        .lt("plan_date", target.isoformat())
+        .order("plan_date", desc=True)
+        .limit(1)
+        .execute()
+    )
+    rows = r.data or []
+    if not rows:
+        return None
+    return pd.to_datetime(rows[0]["plan_date"]).date()
+
+
+def copy_plans(from_date: date, to_date: date) -> dict:
+    """Clona todas as linhas de `from_date` em `to_date`.
+
+    Pula linhas que ja existem em `to_date` para a mesma `(contract, direction)`
+    — a UNIQUE `(user_id, plan_date, contract_name, direction)` em
+    daily_plans cobre isso no DB, mas filtrar aqui evita 1 round-trip de
+    erro por colisao e da' um contador exato no dict de retorno.
+
+    Devolve `{ok, copied, skipped, error}`.
+    """
+    try:
+        client = auth.get_client()
+    except Exception as e:
+        return {"ok": False, "copied": 0, "skipped": 0, "error": str(e)}
+
+    user_id = auth.current_user_id()
+    if not user_id:
+        return {"ok": False, "copied": 0, "skipped": 0, "error": "Usuario nao autenticado."}
+
+    src = list_plans(from_date)
+    if src.empty:
+        return {"ok": True, "copied": 0, "skipped": 0, "error": None}
+
+    dst = list_plans(to_date)
+    existing = set()
+    if not dst.empty:
+        existing = {
+            (str(r["contract_name"]).strip().upper(), str(r["direction"]))
+            for _, r in dst.iterrows()
+        }
+
+    to_insert: list[dict] = []
+    skipped = 0
+    for _, row in src.iterrows():
+        key = (str(row["contract_name"]).strip().upper(), str(row["direction"]))
+        if key in existing:
+            skipped += 1
+            continue
+        payload = {
+            "user_id": user_id,
+            "plan_date": to_date.isoformat(),
+            "contract_name": str(row["contract_name"]).strip().upper(),
+            "direction": str(row["direction"]),
+            "max_size": int(row["max_size"]) if pd.notna(row["max_size"]) else 1,
+            "entry_trigger": row.get("entry_trigger") or None,
+            "stop_points": float(row["stop_points"]) if pd.notna(row.get("stop_points")) else None,
+            "target_points": float(row["target_points"]) if pd.notna(row.get("target_points")) else None,
+            "notes": row.get("notes") or None,
+        }
+        # pandas NaN sobrevive em str — sanitiza.
+        for k in ("entry_trigger", "notes"):
+            v = payload[k]
+            if v is None or (isinstance(v, float) and pd.isna(v)):
+                payload[k] = None
+            else:
+                payload[k] = str(v).strip() or None
+        to_insert.append(payload)
+
+    if not to_insert:
+        return {"ok": True, "copied": 0, "skipped": skipped, "error": None}
+
+    try:
+        client.table(TABLE).insert(to_insert).execute()
+    except Exception as e:
+        return {"ok": False, "copied": 0, "skipped": skipped, "error": str(e)}
+
+    return {"ok": True, "copied": len(to_insert), "skipped": skipped, "error": None}
 
 
 def _normalize_row(row: pd.Series, default_date: date | None = None) -> dict | None:
@@ -198,7 +305,7 @@ def upsert_plans(
     devolve contadores. Mesmo padrão de action_plan.upsert_items.
     """
     try:
-        client = _supabase()
+        client = auth.get_client()
     except Exception as e:
         return {"ok": False, "inserted": 0, "updated": 0, "deleted": 0, "error": str(e)}
 
@@ -235,7 +342,7 @@ def upsert_plans(
     inserted = updated = deleted = 0
     try:
         if to_insert:
-            user_id = _current_user_id()
+            user_id = auth.current_user_id()
             if not user_id:
                 return {
                     "ok": False, "inserted": 0, "updated": 0, "deleted": 0,

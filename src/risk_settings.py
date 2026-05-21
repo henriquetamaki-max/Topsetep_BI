@@ -58,8 +58,7 @@ def upsert_settings(payload: dict[str, Any]) -> dict[str, Any]:
         client = auth.get_client()
         # `auth.uid()` no banco resolve o user_id; aqui precisamos passar
         # explicitamente porque RLS exige `with check (auth.uid() = user_id)`.
-        from coach_ai import _current_user_id  # noqa: PLC0415
-        uid = _current_user_id()
+        uid = auth.current_user_id()
         if not uid:
             return {"ok": False, "error": "no_user"}
         row = {"user_id": uid, **payload}

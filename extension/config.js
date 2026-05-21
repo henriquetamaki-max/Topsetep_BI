@@ -7,6 +7,12 @@
 //
 // Em distribuicao via .zip (T2.7), o BI TopStep gera este arquivo com os
 // valores corretos ja preenchidos antes de empacotar.
+//
+// ⚠️ NUNCA cole aqui a SERVICE_ROLE_KEY do Supabase. Apenas a ANON_KEY (a
+// chave publica em Settings → API). A service_role bypassa RLS e abriria
+// vazamento total de dados se distribuida com a extensao. Se nao tem
+// certeza qual chave e' qual: a ANON_KEY costuma ter "anon" no JWT
+// payload (decodificavel em jwt.io); a service_role tem "service_role".
 
 const BI_TOPSTEP_CONFIG = {
   SUPABASE_URL: "https://YOUR-PROJECT.supabase.co",
