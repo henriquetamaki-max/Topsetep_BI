@@ -8,8 +8,9 @@ Há também um anexo paralelo: **port JavaScript do indicador Pine "Pullbacks MN
 
 ## Estado atual
 
-Última atualização: 2026-05-21.
+Última atualização: 2026-05-22.
 
+- **Loop autônomo (2026-05-22, parte 1)**: testes p/ `metrics.compute_groups` ([tests/test_metrics_groups.py](tests/test_metrics_groups.py)) — 15 testes em 6 classes cobrindo o motor de overlap grouping (a base de toda agregação por "operação"). Empty (2 — DF vazio retorna par vazio + coluna group_id int64 presente), Single trade (2 — group_id=1, additions=0, has_addition=False; agregações conservam contract/type/total_points/total_pnl/total_net_pnl/total_size + group_start/end), Overlap (4 — 2 trades disjuntos = 2 grupos, 2 trades com overlap = 1 grupo, extensão dinâmica do cur_end com 3 trades em cascata + 4º disjunto, boundary exato `entered==exited` mantém no mesmo grupo — documenta semântica do `>` vs `>=`), Isolation (2 — contracts diferentes nunca mergem mesmo com overlap temporal; types Long/Short opostos hedge separado), Ordering (1 — input desordenado é sortado por entered_at), Status (2 — Winner/Loser/Flat baseado em totals agregados, não trade-a-trade), Duration (2 — `duration_min` usa span outer do grupo, não soma de trades). Helper `_make_trades(rows)` aplica defaults sensatos (points=0/pnl=0/pnl_net=0/size=1) só preenchendo o que falta. **Suite total: 262 verdes** (eram 247).
 - **Loop autônomo pós-deploy (2026-05-21, parte 4)**: 5 frentes entregues sem depender dos passos manuais bloqueados.
   (i) **Stacked bar de aderência** ([src/app.py:738](src/app.py#L738)) — horizontal stacked bar plotly mostrando proporção das 5 categorias dentro do expander "Aderência ao plano matinal"; reusa `PLOTLY_LAYOUT`, paleta dedicada (GREEN/RED/#f4a261/#9b2226/#e9c46a), labels só quando ≥8% para não poluir; sem legend (categorias já listadas no card ao lado).
   (ii) **Botão "Limpar dia"** em Day Plan com confirmação 2-cliques via `st.session_state["_day_plan_pending_clear"]`. Novo `daily_plan.delete_plans_for_date(plan_date)` retorna `{ok,deleted,error}`. 8 chaves i18n novas × 3 idiomas.
@@ -72,6 +73,8 @@ Schema em `PRD/schema.sql`, aplicado manualmente no SQL Editor do Supabase.
 
 ## Gotchas / Aprendizados
 
+- 2026-05-21 — **`.venv` quebra ao mover a pasta do projeto** entre drives/paths (ex.: `C:\Users\...\OneDrive\BD\...` → `E:\BD\...`). Os shims `pip.exe`/`streamlit.exe` no `.venv\Scripts\` têm o path do `python.exe` **hardcoded no binário** (Windows launcher), não são symlinks. Sintoma: `Fatal error in launcher: Unable to create process using '<old path>'`. **Fix:** apagar `.venv` e recriar com `python -m venv .venv` na nova localização. Workaround temporário: chamar `\.venv\Scripts\python.exe -m pip ...` em vez de `pip.exe` (o python.exe em si é cópia self-contained, não tem o path hardcoded).
+- 2026-05-21 — **pip 26.1.1 é quebrado no Windows + Python 3.14**: `OSError: [Errno 22] Invalid argument` em `pip\_vendor\distlib\resources.py:171` ao tentar qualquer `pip install`. Vem do upgrade via `python -m pip install --upgrade pip`. **Fix:** ficar com a versão bundled do `venv` (pip 26.0.1 na época). Não rodar upgrade preventivo de pip em venv novo até a 26.1.x estabilizar. Reproduzido em Python 3.14.4 / Windows 11.
 - 2026-05-20 — `Intl.DateTimeFormat(...).formatToParts()` é caro o suficiente para dominar o tempo por barra em backfills longos (~5-20µs/chamada + alocação). Para indicadores que precisam de timezone (ex.: sessão CME 18:00 ET), **cachear o boundary** (próximo limite em ms epoch) e só recomputar quando o timestamp ultrapassa. DST é tratado naturalmente porque a primeira barra após transição recomputa e corrige.
 - 2026-05-20 — `ctx.new_var()` aloca + mantém histórico do valor — só vale a pena para séries lidas com `.get(n)`. No port v0.2.x, `high_s` e `low_s` foram criados mas nunca consumidos: drop dessas duas chamadas é ganho gratuito por barra. Sempre auditar `.get(` no arquivo antes de mover OHLCV para new_var.
 - 2026-05-20 — A charting_library v31 recria o contexto do custom indicator quando o usuário muda inputs no dialog (cache de inputs em `init` é redundante), mas **não** sempre quando troca o símbolo/timeframe — precisa detectar manualmente via `ctx.symbol.ticker + period` e resetar contadores/VWAP/sinal confirmado para evitar contaminação cross-symbol.
@@ -87,6 +90,7 @@ Schema em `PRD/schema.sql`, aplicado manualmente no SQL Editor do Supabase.
 
 ## Histórico de tarefas concluídas
 
+- 2026-05-22 — Tests p/ `metrics.compute_groups` (15 testes em 6 classes — empty/single/overlap/isolation/ordering/status/duration). Cobre motor de agrupamento que é base de KPIs/segmentos/aderência. Suite total 262 verdes (era 247).
 - 2026-05-20 — **Loop autônomo de backlog (pós security review)**: 5 itens entregues sequencialmente.
   (1) **M-3 fix:** `PRD/m11_live_snapshots_unique.sql` adiciona `UNIQUE (user_id, account_id, snapshot_at)`; Edge Function `live-ingest` migrou de `.insert` para `.upsert({ onConflict, ignoreDuplicates: true })`. Retries da extensão agora são idempotentes. `m6_README.md` atualizado com a ordem M9/M10/M11.
   (2) **M-2 bloqueado e documentado:** download de bundle JS externo (`esm.sh/@supabase/supabase-js`) para `assets/vendor/` foi bloqueado pelo classificador (supply chain não autorizado pelo agente). Criado `assets/vendor/README.md` com o procedimento manual para o operador rodar quando quiser.
