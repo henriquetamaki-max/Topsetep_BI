@@ -10,14 +10,11 @@ from __future__ import annotations
 import sys
 import unittest
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import billing  # noqa: E402
+import billing
 
 
 # ---------------------------------------------------------------------------

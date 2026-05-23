@@ -7,16 +7,12 @@ Roda com:
 from __future__ import annotations
 
 import datetime as dt
-import sys
 import unittest
-from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import metrics  # noqa: E402
+import metrics
 
 
 def _make_group(group_id: int, contract: str, side: str, size: int,

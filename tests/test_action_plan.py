@@ -7,19 +7,15 @@ Cliente Supabase mockado via unittest.mock. Foca em:
 """
 from __future__ import annotations
 
-import sys
 import unittest
 from datetime import date
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import action_plan  # noqa: E402
+import action_plan
 
 
 def _make_select_chain(rows: list[dict]) -> MagicMock:

@@ -10,18 +10,14 @@ limpo entre testes para evitar resposta carregada do teste anterior.
 """
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import live  # noqa: E402
+import live
 
 
 def _make_snapshot_chain(rows: list[dict]) -> MagicMock:

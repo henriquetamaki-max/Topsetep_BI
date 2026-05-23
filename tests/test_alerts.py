@@ -5,19 +5,15 @@ funcao confia no banco); cobrimos so' que as queries certas sao construidas.
 """
 from __future__ import annotations
 
-import sys
 import unittest
 from datetime import datetime, timezone
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import alerts  # noqa: E402
+import alerts
 
 
 def _make_select_chain(rows: list[dict]) -> MagicMock:

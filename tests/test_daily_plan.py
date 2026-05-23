@@ -5,14 +5,10 @@ Cobre o fallback offline (sem cliente Supabase) e o helper compute_usd.
 """
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import daily_plan  # noqa: E402
+import daily_plan
 
 
 class PointValueUsdTests(unittest.TestCase):

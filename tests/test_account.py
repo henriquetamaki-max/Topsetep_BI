@@ -8,17 +8,13 @@ handle_checkout_return) ficam fora — exigem contexto Streamlit completo.
 from __future__ import annotations
 
 import re
-import sys
 import unittest
 from datetime import datetime, timezone
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import account  # noqa: E402
+import account
 
 
 # ---------------------------------------------------------------------------

@@ -6,16 +6,13 @@ e `sign_out` tambem nao — fazem `st.rerun()` que para o test runner.
 """
 from __future__ import annotations
 
-import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import auth  # noqa: E402
+import auth
 
 
 class FakeSessionState(dict):

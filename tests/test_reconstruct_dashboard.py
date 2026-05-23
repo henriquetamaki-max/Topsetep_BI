@@ -19,16 +19,12 @@ Casos cobertos:
 """
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import ingest_core  # noqa: E402
+import ingest_core
 
 
 def _make_leg(

@@ -11,17 +11,13 @@ trades — cobertos indiretamente via testes do metrics e do app.
 """
 from __future__ import annotations
 
-import sys
 import unittest
 from datetime import date
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import coach_ai  # noqa: E402
+import coach_ai
 
 
 # ---------------------------------------------------------------------------

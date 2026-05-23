@@ -12,16 +12,12 @@ with_additions mas fora dos sub-buckets de win/loss.
 """
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import metrics  # noqa: E402
+import metrics
 
 
 def _groups(rows: list[dict]) -> pd.DataFrame:

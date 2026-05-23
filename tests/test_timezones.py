@@ -6,21 +6,17 @@ fallback de user_tz() sem st.session_state populado.
 """
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 from unittest import mock
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
 # st.session_state e' usado dentro de timezones — precisamos de um stub.
 # Streamlit em "bare mode" emite warnings mas funciona; melhor mockar.
-import streamlit as st  # noqa: E402
+import streamlit as st
 
-import timezones  # noqa: E402
+import timezones
 
 
 def _set_user_tz(tz: str | None) -> None:

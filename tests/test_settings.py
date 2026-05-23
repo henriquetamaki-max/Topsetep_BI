@@ -6,18 +6,14 @@ COMMON_TIMEZONES (regression: ordem importa pro UI selectbox).
 """
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import streamlit as st  # noqa: E402
+import streamlit as st
 
-import settings  # noqa: E402
-import timezones  # noqa: E402
+import settings
+import timezones
 
 
 def _reset_session() -> None:

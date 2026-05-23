@@ -5,17 +5,13 @@ Cliente Supabase e' mockado via unittest.mock (sem rede).
 """
 from __future__ import annotations
 
-import sys
 import unittest
 from datetime import date
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import daily_plan  # noqa: E402
+import daily_plan
 
 
 def _make_chainable_select(rows: list[dict]) -> MagicMock:

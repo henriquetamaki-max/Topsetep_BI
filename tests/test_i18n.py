@@ -10,15 +10,11 @@ Streamlit session_state e mockado via patch para nao depender de runtime real.
 """
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import i18n  # noqa: E402
+import i18n
 
 
 class _FakeSessionState(dict):

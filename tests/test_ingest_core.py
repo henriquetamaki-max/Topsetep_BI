@@ -6,18 +6,14 @@ nao e' coberto aqui — FIFO multi-leg merece arquivo proprio + fixtures reais.
 """
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "src"))
 
-import ingest_core  # noqa: E402
+import ingest_core
 
 
 class DetectFormatTests(unittest.TestCase):
