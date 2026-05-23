@@ -32,12 +32,16 @@ from i18n import t
 
 
 @st.cache_data(ttl=2, show_spinner=False)
-def _fetch_last_snapshot(_user_id: str) -> dict[str, Any] | None:
+def _fetch_last_snapshot(user_id: str) -> dict[str, Any] | None:
     """Ultimo snapshot do usuario corrente.
 
-    `_user_id` so existe como chave de cache; a query usa o JWT do cliente
-    autenticado (RLS filtra naturalmente).
+    `user_id` existe como chave de cache (a query usa o JWT do cliente
+    autenticado, RLS filtra naturalmente). SEM underscore: o prefixo `_`
+    em st.cache_data desabilita o hash do parametro, e dois traders no
+    mesmo processo Streamlit compartilhariam a mesma entrada por 2s
+    (janela curta de vazamento de snapshot entre usuarios).
     """
+    del user_id  # consumido pela chave de cache, query usa JWT do client
     try:
         r = (
             auth.get_client().table("live_snapshots")
@@ -53,7 +57,9 @@ def _fetch_last_snapshot(_user_id: str) -> dict[str, Any] | None:
 
 
 @st.cache_data(ttl=2, show_spinner=False)
-def _fetch_recent_alerts(_user_id: str, limit: int = 20) -> pd.DataFrame:
+def _fetch_recent_alerts(user_id: str, limit: int = 20) -> pd.DataFrame:
+    """Wrapper cacheado de alerts.list_recent (TTL=2s, isolado por user_id)."""
+    del user_id  # consumido pela chave de cache
     return alerts_mod.list_recent(limit=limit)
 
 
