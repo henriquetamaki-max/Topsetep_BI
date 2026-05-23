@@ -22,6 +22,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const ALLOWED_ORIGINS = [
   "chrome-extension://",  // qualquer ext local (load unpacked)
@@ -99,9 +100,12 @@ Deno.serve(async (req) => {
   }
   const jwt = authHeader.slice(7).trim();
 
-  // Cliente leve so para validar o JWT.
-  const userClient = createClient(SUPABASE_URL, jwt, {
+  // Cliente leve so para validar o JWT. O 2o arg e' a apikey (anon), nao o
+  // JWT do usuario — passar o JWT como apikey falha desde a migracao para
+  // signing keys assimetricos (ES256), pois gateway valida apikey separado.
+  const userClient = createClient(SUPABASE_URL, ANON_KEY, {
     auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
   const { data: ud, error: userErr } = await userClient.auth.getUser(jwt);
   if (userErr || !ud?.user) {

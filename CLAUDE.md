@@ -258,6 +258,7 @@ Trigger Postgres `risk_guard_eval` em `live_snapshots` (criado por `PRD/m10_risk
 
 - A coluna `Id` do CSV pode chegar como float se o CSV tiver linha vazia; `astype("int64")` falha antes do upsert — comportamento desejado.
 - `service_role` bypassa RLS — só use no `ingest.py` local e em Edge Functions; **nunca** em `secrets.toml`/Streamlit Cloud.
+- **SQL Editor do Supabase roda como `postgres` (service role), não como o usuário autenticado** — portanto `auth.uid()` retorna `NULL` ali e qualquer `where user_id = auth.uid()` devolve zero linhas mesmo com dados presentes. Para inspecionar dados de um user específico no Editor, filtre pelo UUID literal (`where user_id = 'c4765210-...'`). Esse é o caminho legítimo para debug — não tente "logar" no Editor.
 - `load_trades(user_id)` em `app.py` usa `user_id` como chave de cache: previne vazamento entre usuários no mesmo processo Streamlit.
 - Não rode `ingest.py` em paralelo: `next_output_name()` não tem lock.
 - LSP do VS Code pode reportar "Cannot find module streamlit/plotly" — é falso positivo (LSP olhando Python 3.14 global em vez do `.venv`). Ignorar.

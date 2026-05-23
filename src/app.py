@@ -75,8 +75,35 @@ st.markdown(
         --fs-metric: 1.5rem;
     }
     .block-container { padding-top: 1.5rem; padding-bottom: 2rem; }
-    [data-testid="stMetricValue"] { font-size: var(--fs-metric); font-weight: 600; }
-    [data-testid="stMetricLabel"] { color: #9aa0a6; }
+    /* Streamlit marca elementos como data-stale=true durante reruns e aplica
+       opacidade reduzida. Em paginas com st_autorefresh frequente (aba Live,
+       3s) o estado stale e' quase perpetuo e tudo parece desabilitado. */
+    [data-stale="true"],
+    [data-testid="stElementContainer"][data-stale="true"] {
+        opacity: 1 !important;
+    }
+    [data-testid="stMetricValue"],
+    [data-testid="stMetricValue"] > div {
+        font-size: var(--fs-metric) !important;
+        font-weight: 700 !important;
+        color: #ffffff !important;
+    }
+    [data-testid="stMetricLabel"],
+    [data-testid="stMetricLabel"] > div,
+    [data-testid="stMetricLabel"] p {
+        color: #c8ccd4 !important;
+        font-weight: 500 !important;
+    }
+    h1, h2, h3, h4, h5, h6,
+    [data-testid="stMarkdownContainer"] h1,
+    [data-testid="stMarkdownContainer"] h2,
+    [data-testid="stMarkdownContainer"] h3,
+    [data-testid="stMarkdownContainer"] h4 {
+        color: #ffffff !important;
+    }
+    /* Caption / texto small fica visivel sem virar branco puro */
+    [data-testid="stCaptionContainer"],
+    .stCaption, small { color: #b8bcc4 !important; }
     .segment-box {
         background:#161a23; border:1px solid #2a2f3a; border-radius:8px;
         padding:14px 16px; height:100%;
@@ -772,7 +799,9 @@ def render_dashboard(
                         textfont=dict(color="#0e1117", size=12),
                     ))
                 fig_adh.update_layout(
-                    **PLOTLY_LAYOUT,
+                    paper_bgcolor=BG,
+                    plot_bgcolor=BG,
+                    font=dict(color=TEXT, family="Inter, system-ui, sans-serif"),
                     height=90, barmode="stack",
                     showlegend=False,
                     margin=dict(l=10, r=10, t=10, b=10),

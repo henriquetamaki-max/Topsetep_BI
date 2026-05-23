@@ -111,6 +111,7 @@ Já estavam parcialmente listados em §11 do guia; reforçando:
   - `.venv/Scripts/python.exe -c "import json; [json.load(open(f'locales/{l}.json',encoding='utf-8')) for l in ('en','es','pt_BR')]"`
   - `streamlit run src/app.py` em background, golden path no browser, 1 caso de erro.
 - **Subagentes**: para qualquer task que toque >1 área, disparar 2-3 `Explore` em paralelo antes de implementar (ver [CLAUDE.md](CLAUDE.md)).
+- **Tarefa `[trivial]`**: tarefa cujo título traz a tag `[trivial]` no final. Caracteriza-se por caber em <2 `Read` + 1 `Edit`, não tocar i18n/schema/teste, e ser uma edição pontual (atualizar docs, validar wrap-up, ajustar feature flag, adicionar 1 botão). Em iterações de `/loop` autônomo, tarefas `[trivial]` **pulam o Ritual de abertura** (2-3 `Explore` em paralelo) e podem ser **agrupadas 2-3 numa única iteração**. Tarefas não-trivias continuam consumindo uma iteração inteira cada.
 
 ---
 
@@ -411,7 +412,7 @@ create policy accounts_owner_all on public.accounts
 ```
 **Commit:** `feat(m6): accounts + RLS (1 conta TopStep ativa por trader no MVP)`
 
-### T1.3.8 — Wrap-up Fase 1.3
+### T1.3.8 — Wrap-up Fase 1.3 `[trivial]`
 **Objetivo:** validar tudo em conjunto.
 **Passo a passo:**
 1. Rodar todas as migrations T1.3.1 a T1.3.7 em ambiente staging.
@@ -575,7 +576,7 @@ def fmt_dual(ts: pd.Timestamp, fmt: str = "%d/%m %H:%M") -> str:
 **Branch:** `fusao/m8-adicoes-refined`
 **Objetivo:** Estender `compute_plan_adherence` com regras adicionais inspiradas no `processor.py` Legacy do Trade_Agent.
 
-### T1.1.1 — Inspecionar processor.py Legacy e mapear regras novas
+### T1.1.1 — Inspecionar processor.py Legacy e mapear regras novas `[trivial]`
 **Pré-requisitos:** Fase 1.2 completa.
 **Arquivos tocados:** apenas leitura.
 **Passo a passo:**
@@ -778,7 +779,7 @@ def fmt_dual(ts: pd.Timestamp, fmt: str = "%d/%m %H:%M") -> str:
 **Critério de pronto:** após deploy, `curl -X POST <url>/live-ingest -H "authorization: Bearer <jwt valido>" -H "content-type: application/json" -d '{"ping": true}'` retorna `{ok: true, user_id: "..."}`.
 **Commit:** `feat(m9): Edge Function live-ingest (JWT auth + INSERT em live_snapshots)`
 
-### T2.5 — Botão "Gerar token de extensão" na aba Account
+### T2.5 — Botão "Gerar token de extensão" na aba Account `[trivial]`
 **Pré-requisitos:** T2.4.
 **Arquivos tocados:** `src/account.py`, locales.
 **Passo a passo:**
@@ -831,7 +832,7 @@ def fmt_dual(ts: pd.Timestamp, fmt: str = "%d/%m %H:%M") -> str:
 **Critério de pronto:** rodar o script gera `extension-latest.zip`. Subir manualmente no Supabase Studio Storage. URL pública retorna o `.zip` corretamente.
 **Commit:** `feat(m9): script package_extension.py + zip publicado no Supabase Storage`
 
-### T2.8 — Wrap-up Fase 2
+### T2.8 — Wrap-up Fase 2 `[trivial]`
 **Passo a passo:**
 1. Validação end-to-end:
    - Usuário Pro loga → aba Account copia JWT.
@@ -948,7 +949,7 @@ create trigger trg_risk_guard
 **Critério de pronto:** inserir manualmente em `live_snapshots` com `day_pnl = -1500` para usuário com `risk_settings.daily_loss_limit_usd = 1000` → aparece linha em `alerts` com `alert_type='daily_loss_limit'`, `severity='critical'`.
 **Commit:** `feat(m10): trigger risk_guard_eval cria alerts a partir de live_snapshots`
 
-### T3.3 — Aba Live com polling via `st_autorefresh`
+### T3.3 — Aba Live com polling via `st_autorefresh` `[trivial]`
 **Pré-requisitos:** T3.2.
 **Arquivos tocados:** `src/live.py`, `requirements.txt` (adicionar `streamlit-autorefresh`).
 **Passo a passo:**
@@ -998,7 +999,7 @@ create trigger trg_risk_guard
 **Critério de pronto:** primeira visita à aba Live → browser pede permissão de notificação. Aceitar → inserir alerta manual no banco → notificação nativa do OS aparece (mesmo com app em outra aba).
 **Commit:** `feat(m10): Web Notifications API via componente HTML escutando alerts`
 
-### T3.5 — Marcar alerta como lido / dismissed
+### T3.5 — Marcar alerta como lido / dismissed `[trivial]`
 **Pré-requisitos:** T3.4.
 **Arquivos tocados:** `src/live.py`, `src/alerts.py` (novo módulo CRUD).
 **Passo a passo:**
@@ -1010,7 +1011,7 @@ create trigger trg_risk_guard
 **Critério de pronto:** clicar "Marcar como lido" remove o destaque visual; recarregar mantém.
 **Commit:** `feat(m10): alerts CRUD (mark_read/dismissed) + UI`
 
-### T3.6 — Wrap-up Fase 3
+### T3.6 — Wrap-up Fase 3 `[trivial]`
 **Passo a passo:**
 1. Validação end-to-end:
    - Configurar `risk_settings` com DLL $1000.
@@ -1040,7 +1041,7 @@ create trigger trg_risk_guard
 2. Tag final: `git tag -a v-archived -m "Projeto arquivado — funcionalidades migradas para BI TopStep"`.
 3. Atualizar `README.md` do Trade_Agent na primeira linha: "⚠️ ARQUIVADO — ver BI TopStep (`E:\BD\260502 BI TopStep`)".
 
-### T4.3 — Atualizar MEMORIA.md e DECISOES.md do BI TopStep
+### T4.3 — Atualizar MEMORIA.md e DECISOES.md do BI TopStep `[trivial]`
 **Passo a passo:**
 1. `MEMORIA.md` — entrada datada de conclusão da fusão.
 2. `DECISOES.md` — eventual nova entrada se algo grande mudou de rumo durante a execução.

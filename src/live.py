@@ -209,8 +209,13 @@ def _inject_web_notifications(user_id: str) -> None:
         const CFG = {cfg_literal};
         try {{
             const {{ createClient }} = await import("https://esm.sh/@supabase/supabase-js@2.45.4");
-            const sb = createClient(CFG.supaUrl, CFG.supaAnon);
-            await sb.auth.setSession({{ access_token: CFG.jwt, refresh_token: "" }});
+            const sb = createClient(CFG.supaUrl, CFG.supaAnon, {{
+                realtime: {{ params: {{ apikey: CFG.supaAnon }} }},
+            }});
+            // Autentica o canal Realtime com o JWT do usuario (role:authenticated).
+            // Sem isso, o canal cai no apiKey (role:anon) e RLS rejeita os eventos
+            // — postgres_changes nunca chega no client, mesmo com publication ok.
+            sb.realtime.setAuth(CFG.jwt);
             const setStatus = (m) => {{
                 const el = document.getElementById("bi-notif-status");
                 if (el) el.textContent = m;
