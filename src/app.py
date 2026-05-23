@@ -210,29 +210,14 @@ def load_trades(user_id: str) -> pd.DataFrame:
 # ----------------------------- Helpers ---------------------------------------
 
 
-def fmt_money(v: float) -> str:
-    sign = "-" if v < 0 else ""
-    return f"{sign}$ {abs(v):,.2f}"
-
-
-def fmt_pts(v: float) -> str:
-    return f"{v:+,.2f} pts"
-
-
-def fmt_pct(v: float) -> str:
-    return f"{v * 100:.1f}%"
-
-
-def color_class(v: float) -> str:
-    return "pos" if v >= 0 else "neg"
-
-
-def fmt_duration(seconds: float) -> str:
-    if seconds < 60:
-        return f"{seconds:.0f}s"
-    if seconds < 3600:
-        return f"{seconds / 60:.1f}min"
-    return f"{seconds / 3600:.1f}h"
+from app_helpers import (
+    color_class,
+    extract_days_from_event,
+    fmt_duration,
+    fmt_money,
+    fmt_pct,
+    fmt_pts,
+)
 
 
 def _apply_day_selection_from_event(event) -> None:
@@ -240,24 +225,7 @@ def _apply_day_selection_from_event(event) -> None:
     session_state["selected_days"]. Aceita barras (x = trade_day) e heatmap
     (customdata = ISO date). Rerun se a seleção mudou de fato.
     """
-    if not event or "selection" not in event:
-        return
-    points = event["selection"].get("points") or []
-    if not points:
-        return
-    days: set = set()
-    for p in points:
-        iso = p.get("customdata")
-        if isinstance(iso, list):
-            iso = iso[0] if iso else None
-        raw = iso or p.get("x")
-        if raw is None:
-            continue
-        try:
-            d = pd.to_datetime(raw).date()
-        except (ValueError, TypeError):
-            continue
-        days.add(d)
+    days = extract_days_from_event(event)
     if not days:
         return
     current = set(st.session_state.get("selected_days", []))
