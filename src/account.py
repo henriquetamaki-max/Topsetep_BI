@@ -197,18 +197,6 @@ def render_account_tab(user: dict, plan: dict | None) -> None:
     st.subheader(t("account.title"))
     st.caption(t("account.caption"))
 
-    # --- DEBUG TEMPORARIO: JWT da extensao no topo, sempre visivel -----------
-    _sess_dbg = st.session_state.get("session", {})
-    _jwt_dbg = _sess_dbg.get("access_token", "")
-    st.markdown("##### [DEBUG] JWT para colar na extensao Chrome")
-    if _jwt_dbg:
-        st.code(_jwt_dbg, language=None)
-        st.caption(f"Comprimento: {len(_jwt_dbg)} chars. Copie tudo entre as bordas do bloco acima.")
-    else:
-        st.error("session_state['session']['access_token'] vazio. Faca logout e login novamente.")
-    st.divider()
-    # -------------------------------------------------------------------------
-
     if not billing.stripe_configured():
         st.warning(t("billing.not_configured"), icon="⚠️")
 
