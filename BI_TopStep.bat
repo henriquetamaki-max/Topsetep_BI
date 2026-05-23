@@ -24,7 +24,7 @@ if not exist ".venv\Scripts\python.exe" (
 )
 
 REM Sobe o Streamlit em uma janela separada (sem abrir browser duplicado).
-start "BI TopStep - Streamlit" ".venv\Scripts\python.exe" -m streamlit run app.py --server.headless true --server.port %PORT%
+start "BI TopStep - Streamlit" ".venv\Scripts\python.exe" -m streamlit run src\app.py --server.headless true --server.port %PORT%
 
 REM Espera o servidor responder na porta antes de abrir o navegador (timeout ~30s).
 echo Aguardando servidor subir em %URL% ...

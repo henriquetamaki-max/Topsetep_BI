@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"e:\\\\BD\\\\260502 BI TopStep\\\\assets\\\\vendor\" -Force)"
+    ]
+  }
+}

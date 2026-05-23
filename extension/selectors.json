@@ -1,0 +1,65 @@
+{
+  "$schema_comment": "Versionamento de seletores DOM para topstepx.com/trade. Atualizar quando TopstepX mudar markup. Cada chave em 'selectors' lista candidatos em ordem de preferencia; content.js itera ate encontrar match com texto compativel. Selectors marcados com TODO sao especulativos — validar via DevTools.",
+  "version": "0.1.0",
+  "validated_at": "2026-05-20",
+  "validated_by": "TODO: trader deve validar via DevTools em topstepx.com/trade",
+  "url_pattern": "topstepx.com/trade",
+  "selectors": {
+    "account_id": [
+      "[data-testid=\"account-id\"]",
+      "[data-testid=\"selected-account\"]",
+      "[class*=\"accountId\"]",
+      "[class*=\"selectedAccount\"]"
+    ],
+    "position_size": [
+      "[data-testid=\"position-size\"]",
+      "[data-testid=\"open-position-size\"]",
+      "[class*=\"positionSize\"]",
+      "[class*=\"position-size\"]"
+    ],
+    "position_avg_price": [
+      "[data-testid=\"position-avg-price\"]",
+      "[data-testid=\"avg-price\"]",
+      "[class*=\"avgPrice\"]",
+      "[class*=\"avg-price\"]"
+    ],
+    "position_contract": [
+      "[data-testid=\"position-contract\"]",
+      "[data-testid=\"contract\"]",
+      "[class*=\"positionContract\"]",
+      "[class*=\"contractSymbol\"]"
+    ],
+    "position_side": [
+      "[data-testid=\"position-side\"]",
+      "[class*=\"positionSide\"]",
+      "[class*=\"side\"]"
+    ],
+    "unrealized_pnl": [
+      "[data-testid=\"unrealized-pnl\"]",
+      "[class*=\"unrealizedPnl\"]",
+      "[class*=\"unrealized-pnl\"]"
+    ],
+    "realized_pnl": [
+      "[data-testid=\"realized-pnl\"]",
+      "[class*=\"realizedPnl\"]",
+      "[class*=\"realized-pnl\"]"
+    ],
+    "day_pnl": [
+      "[data-testid=\"day-pnl\"]",
+      "[data-testid=\"daily-pnl\"]",
+      "[class*=\"dayPnl\"]",
+      "[class*=\"day-pnl\"]"
+    ],
+    "drawdown": [
+      "[data-testid=\"drawdown\"]",
+      "[data-testid=\"current-drawdown\"]",
+      "[class*=\"drawdown\"]"
+    ]
+  },
+  "fallback_regex": {
+    "position_size": "Position[:\\s]*([+-]?\\d+)",
+    "unrealized_pnl": "Unrealized[\\s]*P&L[:\\s]*\\$?([+-]?[\\d,]+\\.?\\d*)",
+    "day_pnl": "Day[\\s]*P&L[:\\s]*\\$?([+-]?[\\d,]+\\.?\\d*)"
+  },
+  "$debug_hint": "Se scrape falhar 3 vezes seguidas, popup mostra 'selectors desatualizados'. Para corrigir: abrir DevTools em topstepx.com/trade, identificar os elementos com Inspect, adicionar novos seletores no topo de cada array em selectors.json. Recarregar a extensao em chrome://extensions."
+}

@@ -18,7 +18,7 @@ set LOGFILE=logs\ingest-%TODAY%.log
 
 echo. >> "%LOGFILE%"
 echo === [%date% %time%] inicio === >> "%LOGFILE%"
-".venv\Scripts\python.exe" ingest.py >> "%LOGFILE%" 2>&1
+".venv\Scripts\python.exe" src\ingest.py >> "%LOGFILE%" 2>&1
 set EXITCODE=%ERRORLEVEL%
 echo === [%date% %time%] fim (exit=%EXITCODE%) === >> "%LOGFILE%"
 

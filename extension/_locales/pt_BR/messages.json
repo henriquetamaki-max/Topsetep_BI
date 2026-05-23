@@ -1,0 +1,43 @@
+{
+  "extName":              { "message": "BI TopStep — Live Monitor" },
+  "extDescription":       { "message": "Monitor ao vivo do TopstepX → envia snapshots de posição e PnL para o BI TopStep (multi-tenant via Supabase JWT)." },
+  "popupTitle":           { "message": "BI TopStep — Live Monitor" },
+  "popupJwtLabel":        { "message": "JWT do Supabase" },
+  "popupJwtPlaceholder":  { "message": "Cole seu JWT do BI TopStep → Conta → Extensão" },
+  "popupBtnSave":         { "message": "Salvar token" },
+  "popupBtnPing":         { "message": "Testar conexão" },
+  "popupSectionStatus":   { "message": "Status" },
+  "popupNoToken":         { "message": "Nenhum token salvo." },
+  "popupTokenInvalid":    { "message": "Token inválido — cole um JWT novo de BI TopStep → Conta." },
+  "popupTokenExpired":    { "message": "Token expirado — faça login no BI TopStep e copie um novo." },
+  "popupSignedIn":        { "message": "Conectado como $EMAIL$ · expira $EXP$",
+                            "placeholders": {
+                              "email": { "content": "$1" },
+                              "exp":   { "content": "$2" }
+                            }
+                          },
+  "popupConfigOk":        { "message": "Config: $URL$",
+                            "placeholders": { "url": { "content": "$1" } } },
+  "popupConfigMissing":   { "message": "Config: NÃO CONFIGURADA — edite extension/config.js" },
+  "popupScrapeOk":        { "message": "Scrape: OK" },
+  "popupScrapeBroken":    { "message": "Scrape: selectors desatualizados — atualize extension/selectors.json" },
+  "popupScrapeWaiting":   { "message": "Scrape: aguardando topstepx.com/trade" },
+  "popupLastSendNever":   { "message": "Último envio: nunca" },
+  "popupLastSendOk":      { "message": "Último envio: $WHEN$ · 2XX ($SOURCE$)",
+                            "placeholders": {
+                              "when":   { "content": "$1" },
+                              "source": { "content": "$2" }
+                            }
+                          },
+  "popupLastSendErr":     { "message": "Último envio: $WHEN$ · $CODE$ ($DETAIL$)",
+                            "placeholders": {
+                              "when":   { "content": "$1" },
+                              "code":   { "content": "$2" },
+                              "detail": { "content": "$3" }
+                            }
+                          },
+  "popupPingPending":     { "message": "Pingando…" },
+  "popupPingError":       { "message": "Erro no ping: $MSG$",
+                            "placeholders": { "msg": { "content": "$1" } } },
+  "popupFooterHint":      { "message": "Abra topstepx.com/trade para começar a enviar snapshots." }
+}

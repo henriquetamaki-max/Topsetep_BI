@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C * status*)",
+      "Bash(git -C * log*)",
+      "Bash(git -C * diff*)",
+      "Bash(git -C * show*)",
+      "Bash(git -C * show-ref*)",
+      "Bash(git -C * tag*)",
+      "Bash(git -C * branch*)",
+      "Bash(git -C * check-ignore*)",
+      "Bash(git --no-pager log*)",
+      "Bash(git --no-pager show*)",
+      "Bash(git --no-pager diff*)",
+      "Bash(rtk gain*)",
+      "Bash(rtk --version)"
+    ]
+  }
+}

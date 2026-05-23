@@ -10,6 +10,15 @@ logs/
 CSV output/*.csv
 !CSV output/.gitkeep
 
+CSV input/*.csv
+
 # Projeto de referência (TradePontos) - foi consultado para extrair fórmulas
 # para metrics.py; não faz parte do código deste repo e contém node_modules pesado.
 Templates/TradePontos/
+
+# Artefatos de teste Playwright (capturas, logs, snapshots) — não vão pro repo.
+.playwright-mcp/
+*.png
+
+# Zips empacotados da extensão Chrome — gerados por scripts/package_extension.py.
+dist/

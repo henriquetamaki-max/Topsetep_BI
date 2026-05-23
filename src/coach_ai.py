@@ -1,0 +1,365 @@
+"""
+Coach AI — gera um prompt pronto para copiar e colar em qualquer UI de LLM
+(Gemini, Perplexity, ChatGPT, Claude.ai). Não executa LLM diretamente.
+
+Estratégia:
+- Pré-agregamos métricas em Python (rápido, sem token) e montamos um snapshot
+  JSON. O usuário cola o prompt resultante na LLM de preferência.
+- Cabeçalho com período (DD/MM/YYYY) e hora local (America/Sao_Paulo) do
+  momento de geração, para rastreabilidade.
+- Calculamos um período-baseline (mesma duração imediatamente antes) pra
+  comparação de tendência.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+import pandas as pd
+from supabase import Client
+
+import auth
+import i18n
+import metrics
+
+_TZ_SP = ZoneInfo("America/Sao_Paulo")
+
+
+def _supabase() -> Client:
+    """Alias historico para `auth.get_client()`. Mantido para nao quebrar
+    imports de modulos legados; codigo novo deve chamar `auth.get_client()`
+    diretamente."""
+    return auth.get_client()
+
+
+def _current_user_id() -> str | None:
+    """Alias historico para `auth.current_user_id()`. Ver `_supabase` acima."""
+    return auth.current_user_id()
+
+
+@dataclass
+class FilterContext:
+    start: date
+    end: date
+    contracts: list[str]
+    types: list[str]
+    weekdays: list[str]
+    result_filter: str  # "all" | "winners" | "losers"
+
+
+# ---------------------------------------------------------------------------
+# Snapshot / prompt building
+# ---------------------------------------------------------------------------
+
+
+def _summarize(df: pd.DataFrame, groups: pd.DataFrame) -> dict:
+    """Resumo numérico do período. Tudo o que vai pro prompt do Claude."""
+    if df.empty:
+        return {"trades": 0}
+
+    pts_kpis = metrics.compute_kpis(df, groups)
+    coach = metrics.compute_coach(df, groups)
+
+    total_pnl = float(df["pnl_net"].sum())
+    wins = df[df["pnl_net"] > 0]
+    losses = df[df["pnl_net"] <= 0]
+    win_rate = len(wins) / len(df) if len(df) else 0.0
+    pf = (
+        float(wins["pnl_net"].sum() / abs(losses["pnl_net"].sum()))
+        if len(losses) and losses["pnl_net"].sum() != 0
+        else None
+    )
+
+    by_contract = (
+        df.groupby("contract_name")["pnl_net"]
+        .agg(["sum", "count", "mean"])
+        .round(2)
+        .to_dict(orient="index")
+    )
+    by_weekday = (
+        df.groupby("weekday")["pnl_net"]
+        .agg(["sum", "count"])
+        .round(2)
+        .to_dict(orient="index")
+    )
+    by_hour = (
+        df.groupby("entry_hour")["pnl_net"]
+        .agg(["sum", "count"])
+        .round(2)
+        .to_dict(orient="index")
+    )
+
+    return {
+        "trades": int(len(df)),
+        "total_pnl_net": round(total_pnl, 2),
+        "win_rate": round(win_rate, 3),
+        "profit_factor": round(pf, 2) if pf is not None else None,
+        "avg_win": round(float(wins["pnl_net"].mean()), 2) if not wins.empty else 0.0,
+        "avg_loss": round(float(losses["pnl_net"].mean()), 2) if not losses.empty else 0.0,
+        "net_points": round(pts_kpis["total_net_points"], 2),
+        "rr_average": round(pts_kpis["rr_average"], 2),
+        "rr_aggregate": round(pts_kpis["rr_aggregate"], 2),
+        "operations": pts_kpis["total_grouped_operations"],
+        "by_contract": by_contract,
+        "by_weekday": by_weekday,
+        "by_hour": by_hour,
+        "behavior": {
+            "revenge": coach["revenge"],
+            "cut_winners_hold_losers": coach["cut_winners_hold_losers"],
+            "overtrading": coach["overtrading"],
+            "losing_streak": {
+                "length": coach["losing_streak"]["length"],
+                "pnl": coach["losing_streak"]["pnl"],
+            },
+        },
+        "leaks": coach["leaks"].to_dict(orient="records") if not coach["leaks"].empty else [],
+        "strengths": coach["strengths"].to_dict(orient="records") if not coach["strengths"].empty else [],
+        "size_buckets": coach["size_buckets"].to_dict(orient="records") if not coach["size_buckets"].empty else [],
+        "checklist_rules": coach["checklist"],
+    }
+
+
+def _baseline_window(df_all: pd.DataFrame, ctx: FilterContext) -> dict | None:
+    """Período imediatamente anterior, mesma duração."""
+    duration = (ctx.end - ctx.start).days
+    base_end = ctx.start - timedelta(days=1)
+    base_start = base_end - timedelta(days=duration)
+    if base_end < df_all["trade_day"].min():
+        return None
+    base_start = max(base_start, df_all["trade_day"].min())
+
+    base_df = df_all[
+        (df_all["trade_day"] >= base_start)
+        & (df_all["trade_day"] <= base_end)
+        & (df_all["contract_name"].isin(ctx.contracts))
+        & (df_all["type"].isin(ctx.types))
+        & (df_all["weekday"].isin(ctx.weekdays))
+    ].copy()
+    if ctx.result_filter == "winners":
+        base_df = base_df[base_df["pnl_net"] > 0]
+    elif ctx.result_filter == "losers":
+        base_df = base_df[base_df["pnl_net"] <= 0]
+    if base_df.empty:
+        return None
+    _, base_groups = metrics.compute_groups(base_df)
+    summary = _summarize(base_df, base_groups)
+    summary["range"] = {"start": base_start.isoformat(), "end": base_end.isoformat()}
+    return summary
+
+
+def _lookup(lang: str, key: str) -> str:
+    """Lê uma string i18n para um idioma específico (sem depender do session_state).
+    Fallback para `en`. Útil em ambientes onde a função roda fora de um rerun
+    Streamlit ativo (testes, scripts).
+    """
+    msg = i18n._load_locale(lang).get(key)
+    if msg is None and lang != i18n.DEFAULT_LANG:
+        msg = i18n._load_locale(i18n.DEFAULT_LANG).get(key)
+    return msg if msg is not None else key
+
+
+def build_prompt(
+    df: pd.DataFrame,
+    groups: pd.DataFrame,
+    df_all: pd.DataFrame,
+    ctx: FilterContext,
+    history: list[dict] | None = None,
+    lang: str | None = None,
+) -> str:
+    """Monta o prompt completo para ser copiado e colado em uma UI de LLM.
+
+    `lang` define o idioma do prompt e da resposta esperada da LLM. Se None,
+    usa o idioma corrente do app (i18n.current_lang()).
+
+    Se `history` for fornecido (lista de dicts com `created_at`, `period_start`,
+    `period_end` e `response_text`), inclui uma seção de avisos anteriores
+    pedindo que a LLM cobre o trader em caso de reincidência.
+    """
+    if lang is None:
+        lang = i18n.current_lang()
+    current = _summarize(df, groups)
+    current["range"] = {"start": ctx.start.isoformat(), "end": ctx.end.isoformat()}
+    baseline = _baseline_window(df_all, ctx)
+
+    # result_filter no contexto é a key interna ("all"/"winners"/"losers");
+    # traduz para o idioma do prompt para que o texto fique consistente.
+    result_label = _lookup(lang, f"sidebar.result.{ctx.result_filter}")
+
+    weekdays_localized = [
+        _lookup(lang, f"weekday.{w.lower()}") for w in ctx.weekdays
+    ]
+    filters_str = _lookup(lang, "coach.prompt.filters_str").format(
+        start=ctx.start.isoformat(),
+        end=ctx.end.isoformat(),
+        contracts=", ".join(ctx.contracts),
+        types=", ".join(ctx.types),
+        weekdays=", ".join(weekdays_localized),
+        result=result_label,
+    )
+
+    payload = {
+        "current_period": current,
+        "baseline_period": baseline,
+    }
+    payload_json = json.dumps(payload, ensure_ascii=False, indent=2, default=str)
+
+    now_sp = datetime.now(_TZ_SP)
+    header = _lookup(lang, "coach.prompt.header").format(
+        start=ctx.start.strftime('%d/%m/%Y'),
+        end=ctx.end.strftime('%d/%m/%Y'),
+        time=now_sp.strftime('%H:%M'),
+    )
+
+    history_block = _format_history_block(history, lang) if history else ""
+
+    system = _lookup(lang, "coach.prompt.system").format(
+        filters=filters_str,
+        history_block=history_block,
+        payload=payload_json,
+    )
+    glossary = _lookup(lang, "coach.prompt.glossary")
+    deliver = _lookup(lang, "coach.prompt.deliver").format(
+        language=i18n.LANG_NATIVE_NAME.get(lang, "English"),
+    )
+    rules = _lookup(lang, "coach.prompt.rules")
+
+    return f"{header}{system}\n\n{glossary}\n\n{deliver}\n\n{rules}\n"
+
+
+# ---------------------------------------------------------------------------
+# Histórico de análises (Supabase)
+# ---------------------------------------------------------------------------
+
+
+def _extract_checklist(response_text: str) -> list[str]:
+    """Tenta extrair bullets das seções 4 (checklist) e 2 (padrões).
+
+    Estratégia: procura headers `## 4` ou `## 2`, lê linhas até o próximo
+    `##` ou fim, e captura linhas começando com `-` ou `*` ou `1.`.
+    Fallback: bullets em qualquer lugar do texto.
+    """
+    bullets: list[str] = []
+    lines = response_text.splitlines()
+    capture_priority: list[tuple[int, int, int]] = []  # (prioridade, idx_ini, idx_fim)
+
+    section_start = None
+    section_priority = 99
+    for i, raw in enumerate(lines):
+        stripped = raw.strip()
+        if stripped.startswith("## "):
+            if section_start is not None:
+                capture_priority.append((section_priority, section_start, i))
+            lower = stripped.lower()
+            if "checklist" in lower or stripped.startswith("## 4"):
+                section_priority = 1
+                section_start = i + 1
+            elif "padr" in lower or stripped.startswith("## 2"):
+                section_priority = 2
+                section_start = i + 1
+            else:
+                section_start = None
+    if section_start is not None:
+        capture_priority.append((section_priority, section_start, len(lines)))
+
+    capture_priority.sort(key=lambda t: t[0])
+    for _, ini, fim in capture_priority:
+        for raw in lines[ini:fim]:
+            s = raw.strip()
+            if s.startswith(("-", "*", "•")):
+                bullets.append(s.lstrip("-*• ").strip())
+            elif len(s) > 2 and s[0].isdigit() and s[1] in (".", ")"):
+                bullets.append(s[2:].strip())
+        if bullets:
+            break
+
+    if not bullets:
+        for raw in lines:
+            s = raw.strip()
+            if s.startswith(("-", "*", "•")):
+                bullets.append(s.lstrip("-*• ").strip())
+
+    return [b for b in bullets if b][:10]
+
+
+def _format_history_block(history: list[dict], lang: str | None = None) -> str:
+    """Monta o bloco 'AVISOS ANTERIORES' a ser injetado no prompt."""
+    if not history:
+        return ""
+    if lang is None:
+        lang = i18n.current_lang()
+    lines = ["", _lookup(lang, "coach.prompt.history_header")]
+    for h in history:
+        when = h.get("created_at", "")
+        if isinstance(when, str) and len(when) >= 10:
+            when_fmt = when[:10]
+        else:
+            when_fmt = str(when)
+        period = f"{h.get('period_start', '?')} - {h.get('period_end', '?')}"
+        bullets = _extract_checklist(h.get("response_text", "") or "")
+        lines.append("")
+        lines.append(_lookup(lang, "coach.prompt.history_entry").format(
+            when=when_fmt, period=period,
+        ))
+        if bullets:
+            for b in bullets:
+                lines.append(f"- {b}")
+        else:
+            text = (h.get("response_text") or "").strip().replace("\n", " ")
+            lines.append(_lookup(lang, "coach.prompt.history_no_checklist").format(
+                text=text[:300],
+            ))
+    return "\n".join(lines) + "\n"
+
+
+def fetch_history(contracts: list[str], limit: int = 20) -> list[dict]:
+    """Busca análises anteriores cujos contratos se sobrepõem aos atuais.
+
+    Retorna lista (mais recente primeiro) de dicts com:
+    created_at, period_start, period_end, contracts, response_text.
+    Em caso de erro de conexão, retorna [].
+    """
+    if not contracts:
+        return []
+    try:
+        client = _supabase()
+        r = (
+            client.table("coach_analyses")
+            .select("created_at,period_start,period_end,contracts,response_text")
+            .overlaps("contracts", contracts)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return r.data or []
+    except Exception:
+        return []
+
+
+def save_analysis(ctx: FilterContext, response_text: str) -> dict:
+    """Insere uma análise da LLM no Supabase. Retorna {ok, error}."""
+    text = (response_text or "").strip()
+    if not text:
+        return {"ok": False, "error": "Texto vazio."}
+    user_id = _current_user_id()
+    if not user_id:
+        return {"ok": False, "error": "Usuário não autenticado."}
+    try:
+        client = _supabase()
+        client.table("coach_analyses").insert(
+            {
+                "user_id": user_id,
+                "period_start": ctx.start.isoformat(),
+                "period_end": ctx.end.isoformat(),
+                "contracts": ctx.contracts,
+                "types": ctx.types,
+                "weekdays": ctx.weekdays,
+                "result_filter": ctx.result_filter,
+                "response_text": text,
+            }
+        ).execute()
+        return {"ok": True, "error": None}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
