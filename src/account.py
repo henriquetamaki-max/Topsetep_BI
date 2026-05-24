@@ -15,6 +15,7 @@ sinaliza visualmente que o pagamento foi processado e pede pra recarregar.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -153,7 +154,7 @@ def _render_plan_card(
         else:
             label = t("billing.upgrade_to", plan=name)
             if st.button(label, key=f"upgrade_{plan_def['slug']}",
-                         type="primary", use_container_width=True):
+                         type="primary", width="stretch"):
                 _trigger_checkout(user_id, email, plan_def["slug"], customer_id)
 
 
@@ -189,6 +190,52 @@ def _trigger_portal(customer_id: str) -> None:
     st.stop()
 
 
+def _build_jwt_bundle(session: dict[str, Any] | None) -> str | None:
+    """Serializa session em JSON compacto pronto p/ colar no popup da extensao v0.2.0+.
+
+    Inclui access_token, refresh_token, expires_at — a extensao usa esses tres
+    para refrescar automaticamente o access_token quando proximo da expiracao,
+    eliminando o re-paste a cada hora.
+
+    Retorna None se session vazia ou sem access_token. JSON compacto (sem
+    espacos) facilita o paste integro no campo de texto da extensao.
+    """
+    if not session:
+        return None
+    access_token = session.get("access_token")
+    if not access_token:
+        return None
+    bundle = {
+        "access_token": access_token,
+        "refresh_token": session.get("refresh_token") or "",
+        "expires_at": session.get("expires_at"),
+    }
+    return json.dumps(bundle, separators=(",", ":"))
+
+
+def _render_extension_section(plan: dict | None) -> None:
+    """Seção 'Extensão Chrome' — bundle JWT para colar no popup da extensão.
+    Visível apenas para planos com feature live_monitor (Pro/Trial/admin)."""
+    if not billing.has_feature(plan, "live_monitor"):
+        return
+    st.divider()
+    st.markdown(f"#### {t('account.extension_section')}")
+    st.caption(t("account.extension_caption"))
+    sess = st.session_state.get("session", {})
+    bundle = _build_jwt_bundle(sess)
+    if bundle:
+        st.markdown(f"**{t('account.extension_bundle_label')}**")
+        # st.code com language="json" usa highlighter + botao de copiar nativo.
+        # Bundle JSON tem ~1.2-1.5KB (access + refresh + expires); compacto evita
+        # quebrar layout. Trader cola UMA vez na extensao v0.2.0+ que refresca
+        # o access_token automaticamente ate o plano cancelar ou refresh expirar
+        # por inatividade (>60 dias sem usar).
+        st.code(bundle, language="json", wrap_lines=True)
+        st.caption(t("account.extension_bundle_hint"))
+    else:
+        st.warning(t("account.extension_jwt_missing"), icon="⚠️")
+
+
 def render_account_tab(user: dict, plan: dict | None) -> None:
     """Renderiza a aba Account completa.
 
@@ -211,6 +258,7 @@ def render_account_tab(user: dict, plan: dict | None) -> None:
         col1.metric(t("account.current_plan"), t("billing.plan.admin.name"))
         col2.metric(t("account.status"), _status_label("active"))
         col3.metric(t("account.renews_on"), "—")
+        _render_extension_section(plan)
         return
 
     # --- Resumo atual --------------------------------------------------------
@@ -262,25 +310,7 @@ def render_account_tab(user: dict, plan: dict | None) -> None:
         st.markdown(f"#### {t('account.manage_section')}")
         st.caption(t("account.manage_caption"))
         if st.button(t("billing.manage_subscription"),
-                     key="open_portal", use_container_width=False):
+                     key="open_portal", width="content"):
             _trigger_portal(customer_id)
 
-    # --- Extensao Chrome — JWT para colar no popup --------------------------
-    # Visivel apenas para planos com feature live_monitor (Pro/Trial/admin).
-    if billing.has_feature(plan, "live_monitor"):
-        st.divider()
-        st.markdown(f"#### {t('account.extension_section')}")
-        st.caption(t("account.extension_caption"))
-        sess = st.session_state.get("session", {})
-        jwt = sess.get("access_token", "")
-        if jwt:
-            st.text_input(
-                t("account.extension_jwt_label"),
-                value=jwt,
-                type="password",
-                key="account_extension_jwt",
-                help=t("account.extension_jwt_help"),
-            )
-            st.caption(t("account.extension_jwt_hint"))
-        else:
-            st.warning(t("account.extension_jwt_missing"), icon="⚠️")
+    _render_extension_section(plan)

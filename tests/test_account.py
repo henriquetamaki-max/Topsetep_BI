@@ -212,5 +212,70 @@ class PlanCatalogTests(unittest.TestCase):
             self.assertGreater(p["price_cents"], 0)
 
 
+# ---------------------------------------------------------------------------
+# _build_jwt_bundle — serializa session p/ refresh automatico na extensao v0.2.0+
+# ---------------------------------------------------------------------------
+
+
+import json  # noqa: E402  (local to this section)
+
+
+class BuildJwtBundleTests(unittest.TestCase):
+
+    def test_none_session_returns_none(self):
+        self.assertIsNone(account._build_jwt_bundle(None))
+
+    def test_empty_session_returns_none(self):
+        self.assertIsNone(account._build_jwt_bundle({}))
+
+    def test_session_without_access_token_returns_none(self):
+        self.assertIsNone(account._build_jwt_bundle({"refresh_token": "r"}))
+
+    def test_full_session_returns_compact_json(self):
+        sess = {
+            "access_token": "eyJhbG.access.xyz",
+            "refresh_token": "v2.refresh.abc",
+            "expires_at": 1729123456,
+        }
+        out = account._build_jwt_bundle(sess)
+        self.assertIsInstance(out, str)
+        parsed = json.loads(out)
+        self.assertEqual(parsed["access_token"], "eyJhbG.access.xyz")
+        self.assertEqual(parsed["refresh_token"], "v2.refresh.abc")
+        self.assertEqual(parsed["expires_at"], 1729123456)
+
+    def test_missing_refresh_token_defaults_to_empty_string(self):
+        # Trader que loga via OAuth + provider sem refresh_token: nao quebra,
+        # bundle tem refresh_token="" e extensao trata como modo legado.
+        sess = {"access_token": "x", "expires_at": 1729000000}
+        out = account._build_jwt_bundle(sess)
+        parsed = json.loads(out)
+        self.assertEqual(parsed["refresh_token"], "")
+
+    def test_missing_expires_at_preserved_as_none(self):
+        # Algumas sessions antigas nao tem expires_at — extensao decodifica
+        # o JWT diretamente p/ extrair exp claim como fallback.
+        sess = {"access_token": "x", "refresh_token": "r"}
+        out = account._build_jwt_bundle(sess)
+        parsed = json.loads(out)
+        self.assertIsNone(parsed["expires_at"])
+
+    def test_compact_format_no_spaces(self):
+        # JSON compacto (sem espacos apos virgulas/dois-pontos) facilita o
+        # paste integro num campo de texto da extensao sem quebra de linha.
+        sess = {"access_token": "a", "refresh_token": "r", "expires_at": 1}
+        out = account._build_jwt_bundle(sess)
+        self.assertNotIn(", ", out)
+        self.assertNotIn(": ", out)
+
+    def test_null_refresh_token_normalized_to_empty(self):
+        # session.refresh_token pode chegar como None (auth.py setattr fallback)
+        # — normalizamos p/ "" para o JSON nao ficar com null literal.
+        sess = {"access_token": "a", "refresh_token": None, "expires_at": 1}
+        out = account._build_jwt_bundle(sess)
+        parsed = json.loads(out)
+        self.assertEqual(parsed["refresh_token"], "")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

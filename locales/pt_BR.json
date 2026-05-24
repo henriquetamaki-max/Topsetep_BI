@@ -423,6 +423,8 @@
   "account.extension_caption": "Conecte a extensão Chrome para enviar posição e PnL em tempo real para o BI TopStep.",
   "account.extension_jwt_label": "Seu token da extensão (JWT)",
   "account.extension_jwt_help": "Copie esse token e cole no popup da extensão.",
+  "account.extension_bundle_label": "Bundle da extensão (cole este bloco inteiro no popup)",
+  "account.extension_bundle_hint": "A extensão v0.2.0+ usa este bundle para renovar o access token automaticamente. Cole uma vez e funciona até cancelar o plano ou fazer logout.",
   "account.extension_jwt_hint": "O token expira quando você sair. Se a extensão reportar token inválido, faça login de novo e copie um novo token.",
   "account.extension_jwt_missing": "Faça login novamente para gerar um token.",
 

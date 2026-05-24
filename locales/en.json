@@ -423,6 +423,8 @@
   "account.extension_caption": "Connect the Chrome extension to stream live position and PnL to BI TopStep.",
   "account.extension_jwt_label": "Your extension token (JWT)",
   "account.extension_jwt_help": "Copy this token and paste it in the extension popup.",
+  "account.extension_bundle_label": "Extension bundle (paste this entire block in the popup)",
+  "account.extension_bundle_hint": "Extension v0.2.0+ uses this bundle to refresh the access token automatically. Paste once and it keeps working until the plan is cancelled or you sign out.",
   "account.extension_jwt_hint": "The token expires when you sign out. If the extension reports invalid token, sign in again and copy a fresh one.",
   "account.extension_jwt_missing": "Sign in again to generate a token.",
 
