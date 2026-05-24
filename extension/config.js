@@ -1,11 +1,11 @@
-// BI TopStep — Live Monitor extension config
+// X-Metrics — Live Monitor extension config
 //
 // Editar SUPABASE_URL e SUPABASE_ANON_KEY com os valores publicos do seu
 // projeto Supabase (Settings → API).
 //
 // LIVE_INGEST_URL e derivada — nao precisa editar manualmente.
 //
-// Em distribuicao via .zip (T2.7), o BI TopStep gera este arquivo com os
+// Em distribuicao via .zip (T2.7), o X-Metrics gera este arquivo com os
 // valores corretos ja preenchidos antes de empacotar.
 //
 // ⚠️ NUNCA cole aqui a SERVICE_ROLE_KEY do Supabase. Apenas a ANON_KEY (a
@@ -15,9 +15,9 @@
 // payload (decodificavel em jwt.io); a service_role tem "service_role".
 
 const BI_TOPSTEP_CONFIG = {
-  SUPABASE_URL: "https://YOUR-PROJECT.supabase.co",
-  SUPABASE_ANON_KEY: "YOUR-ANON-KEY",
-  VERSION: "0.1.0",
+  SUPABASE_URL: "https://qjzouhdrhoxmtinidsqv.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqem91aGRyaG94bXRpbmlkc3F2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMTk2MzIsImV4cCI6MjA5MzU5NTYzMn0.jIXFHCsPPad4c7iMNNY0pYpE9_aJmvf91Ik3P3aAg-0",
+  VERSION: "0.2.0",
 };
 
 BI_TOPSTEP_CONFIG.LIVE_INGEST_URL =
