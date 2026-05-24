@@ -69,6 +69,61 @@ function rateLimit(user_id: string): boolean {
   return true;
 }
 
+// Cache de plano por user_id. TTL 24h alinhado com a janela de tolerancia
+// definida no produto (cliente que cancela continua operando por ate 24h).
+// Map vive na instancia da Edge Function — se Supabase reciclar o worker
+// ou escalar para mais instancias, cache reseta (aceitavel: vai consultar
+// banco de novo, max 1 query a cada 24h por user_id).
+const PLAN_CACHE_TTL_SEC = 24 * 60 * 60;
+const planCache = new Map<string, { has_live: boolean; expires_at: number }>();
+
+async function userHasLiveMonitor(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<boolean> {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const cached = planCache.get(userId);
+  if (cached && cached.expires_at > nowSec) return cached.has_live;
+
+  // 2 queries simples (em vez de JOIN nested) para nao depender de FK
+  // declarada entre subscriptions.plan_slug e plans.slug.
+  const { data: sub, error: subErr } = await admin
+    .from("subscriptions")
+    .select("status, plan_slug")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (subErr || !sub) {
+    log("warn", "plan_lookup_no_subscription", {
+      user_id: userId, error: subErr?.message,
+    });
+    planCache.set(userId, { has_live: false, expires_at: nowSec + PLAN_CACHE_TTL_SEC });
+    return false;
+  }
+  // Status validos para acesso: active (assinatura paga) ou trialing (14d
+  // grace). past_due/canceled/free perdem acesso.
+  const validStatus = sub.status === "active" || sub.status === "trialing";
+  if (!validStatus) {
+    planCache.set(userId, { has_live: false, expires_at: nowSec + PLAN_CACHE_TTL_SEC });
+    return false;
+  }
+  const { data: plan, error: planErr } = await admin
+    .from("plans")
+    .select("features")
+    .eq("slug", sub.plan_slug)
+    .maybeSingle();
+  if (planErr || !plan) {
+    log("warn", "plan_lookup_no_plan", {
+      user_id: userId, slug: sub.plan_slug, error: planErr?.message,
+    });
+    planCache.set(userId, { has_live: false, expires_at: nowSec + PLAN_CACHE_TTL_SEC });
+    return false;
+  }
+  const features = (plan.features ?? {}) as Record<string, unknown>;
+  const hasLive = features.live_monitor === true;
+  planCache.set(userId, { has_live: hasLive, expires_at: nowSec + PLAN_CACHE_TTL_SEC });
+  return hasLive;
+}
+
 function corsHeaders(origin: string | null): HeadersInit {
   const allow = origin && ALLOWED_ORIGINS.some((p) => origin.startsWith(p))
     ? origin
@@ -113,6 +168,27 @@ Deno.serve(async (req) => {
     return new Response("invalid token", { status: 401, headers: cors });
   }
   const user_id = ud.user.id;
+
+  // Cliente service_role usado tanto para checar plano quanto para INSERT
+  // final. Criado uma vez por request (Deno reaproveita TCP/HTTP underneath).
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+    auth: { persistSession: false },
+  });
+
+  // Gate de licenca: bloqueia se plano nao inclui live_monitor OU se status
+  // nao e' active/trialing. Aplica tambem ao modo ping para evitar resposta
+  // confusa ("ping OK mas snapshots rejeitados depois"). Cache de 24h amortiza
+  // a query — alinha com a tolerancia operacional definida no produto.
+  if (!await userHasLiveMonitor(admin, user_id)) {
+    log("warn", "plan_blocked", { user_id });
+    return new Response(
+      JSON.stringify({
+        error: "plan_does_not_include_live_monitor",
+        code: "plan_required",
+      }),
+      { status: 403, headers: { ...cors, "content-type": "application/json" } },
+    );
+  }
 
   if (!rateLimit(user_id)) {
     log("warn", "rate_limited", { user_id });
@@ -193,11 +269,8 @@ Deno.serve(async (req) => {
   const avgPrice = clampNum(toNum(body.position_avg_price), -1e7, 1e7);
 
   // INSERT como service_role (bypass RLS) — mas o user_id e' do token validado,
-  // nunca do payload do cliente.
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
-    auth: { persistSession: false },
-  });
-
+  // nunca do payload do cliente. `admin` ja foi criado no topo do handler
+  // (compartilhado com a checagem de plano).
   const row = {
     user_id,
     account_id: accountIdStr,
