@@ -1,4 +1,4 @@
-// BI TopStep — Live Monitor — Service Worker
+// X-Metrics — Live Monitor — Service Worker
 //
 // Responsabilidade: enviar snapshots ao Supabase Edge Function `live-ingest`.
 // - Heartbeat de 30s (chrome.alarms) com last-known snapshot do content script.
@@ -19,7 +19,7 @@ const MIN_GAP_MS = 5000; // debounce: no maximo 1 envio a cada 5s
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create(HEARTBEAT_ALARM, { periodInMinutes: HEARTBEAT_PERIOD_MIN });
-  console.log("[BI TopStep] background installed; heartbeat alarm created");
+  console.log("[X-Metrics] background installed; heartbeat alarm created");
 });
 
 chrome.runtime.onStartup.addListener(() => {
@@ -29,7 +29,7 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === HEARTBEAT_ALARM && lastSnapshot) {
     sendSnapshot(lastSnapshot, "heartbeat").catch((e) =>
-      console.warn("[BI TopStep] heartbeat send error:", e)
+      console.warn("[X-Metrics] heartbeat send error:", e)
     );
   }
 });
@@ -64,12 +64,87 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true;
 });
 
+// Refresh do access_token via Supabase Auth REST.
+//
+// Quando a extensao foi configurada via bundle JSON (v0.2.0+), o storage tem
+// `refresh_token` + `expires_at`. Esta funcao roda antes de cada sendSnapshot:
+// se o access_token expira em < REFRESH_THRESHOLD_SEC, troca o refresh_token
+// por par novo (rotation default do Supabase) e atualiza o storage.
+//
+// Modo legado (so' `jwt`, sem refresh_token): nao faz nada — extensao usa o
+// JWT ate 401 chegar e trader recolar manualmente.
+const REFRESH_THRESHOLD_SEC = 300; // 5 min antes da expiracao
+
+async function maybeRefreshToken(cfg) {
+  const { jwt, refresh_token, expires_at } = await chrome.storage.local.get([
+    "jwt", "refresh_token", "expires_at",
+  ]);
+  if (!jwt) return { jwt: null };
+  // Sem refresh_token ou sem expires_at = modo legado, segue com o jwt atual.
+  if (!refresh_token || !Number.isFinite(expires_at)) {
+    return { jwt };
+  }
+  const nowSec = Math.floor(Date.now() / 1000);
+  // Ainda longe da expiracao? Devolve jwt atual sem chamar o servidor.
+  if (expires_at - nowSec > REFRESH_THRESHOLD_SEC) {
+    return { jwt };
+  }
+  // Trocar refresh_token por novo par. POST /auth/v1/token?grant_type=refresh_token
+  // retorna { access_token, refresh_token (rotacionado), expires_in, ... }.
+  try {
+    const url = `${cfg.SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        apikey: cfg.SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ refresh_token }),
+    });
+    if (!res.ok) {
+      // refresh_token revogado (logout no app), expirado (60 dias sem uso)
+      // ou plano cancelado. Sinaliza no last_status p/ popup mostrar e
+      // pede repaste do bundle.
+      const text = await res.text().catch(() => "");
+      chrome.storage.local.set({
+        last_status: {
+          ok: false,
+          code: res.status,
+          at: new Date().toISOString(),
+          source: "refresh",
+          error: "refresh_failed",
+          text: text.slice(0, 200),
+        },
+      });
+      // Devolve jwt antigo mesmo assim — server vai responder 401 e UI mostra.
+      return { jwt };
+    }
+    const data = await res.json();
+    if (!data?.access_token) return { jwt };
+    const newJwt = data.access_token;
+    const newRefresh = data.refresh_token || refresh_token;
+    const newExpiresAt = Math.floor(Date.now() / 1000)
+      + (Number.isFinite(data.expires_in) ? data.expires_in : 3600);
+    await chrome.storage.local.set({
+      jwt: newJwt,
+      refresh_token: newRefresh,
+      expires_at: newExpiresAt,
+    });
+    return { jwt: newJwt };
+  } catch (e) {
+    // Rede instavel: usa jwt atual. Se ele tambem ja expirou, sendSnapshot
+    // vai pegar 401 e o trader vera no popup.
+    console.warn("[X-Metrics] refresh error:", e);
+    return { jwt };
+  }
+}
+
 async function sendSnapshot(payload, source) {
   const cfg = globalThis.BI_TOPSTEP_CONFIG;
   if (!cfg || !cfg.SUPABASE_URL || !cfg.LIVE_INGEST_URL) {
     return { ok: false, error: "config_missing" };
   }
-  const { jwt } = await chrome.storage.local.get(["jwt"]);
+  const { jwt } = await maybeRefreshToken(cfg);
   if (!jwt) return { ok: false, error: "no_jwt" };
 
   const body = payload?.ping ? { ping: true } : enrichPayload(payload);
@@ -120,5 +195,5 @@ function enrichPayload(p) {
   return out;
 }
 
-console.log("[BI TopStep] background.js ready (v" +
+console.log("[X-Metrics] background.js ready (v" +
   (globalThis.BI_TOPSTEP_CONFIG?.VERSION || "?") + ")");

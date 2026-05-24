@@ -2,33 +2,33 @@
   "manifest_version": 3,
   "name": "__MSG_extName__",
   "default_locale": "en",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "__MSG_extDescription__",
-
   "permissions": [
     "storage",
     "alarms",
     "tabs",
     "notifications"
   ],
-
   "host_permissions": [
     "https://topstepx.com/*",
     "https://*.supabase.co/*"
   ],
-
   "background": {
     "service_worker": "background.js"
   },
-
   "content_scripts": [
     {
-      "matches": ["https://topstepx.com/*"],
-      "js": ["config.js", "content.js"],
+      "matches": [
+        "https://topstepx.com/*"
+      ],
+      "js": [
+        "config.js",
+        "content.js"
+      ],
       "run_at": "document_end"
     }
   ],
-
   "action": {
     "default_popup": "popup.html",
     "default_title": "__MSG_extName__",
@@ -38,17 +38,20 @@
       "128": "icons/icon128.png"
     }
   },
-
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-
   "web_accessible_resources": [
     {
-      "resources": ["selectors.json", "config.js"],
-      "matches": ["https://topstepx.com/*"]
+      "resources": [
+        "selectors.json",
+        "config.js"
+      ],
+      "matches": [
+        "https://topstepx.com/*"
+      ]
     }
   ]
 }

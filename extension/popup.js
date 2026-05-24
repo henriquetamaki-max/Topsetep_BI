@@ -1,4 +1,4 @@
-// BI TopStep — Live Monitor — Popup
+// X-Metrics — Live Monitor — Popup
 //
 // Funcoes:
 // - Salvar JWT em chrome.storage.local.
@@ -47,7 +47,9 @@ function isFiniteNum(v) {
 
 // Retorna { ok: true, payload } ou { ok: false, code: "<motivo>" }.
 function validateJwt(jwt) {
-  if (typeof jwt !== "string" || jwt.length < 20 || jwt.length > 4096) {
+  // Limite generoso: JWTs assimetricos (RS256/PS256) podem passar de 2KB com
+  // claims customizadas e header de chave. 8192 cobre folgadamente.
+  if (typeof jwt !== "string" || jwt.length < 20 || jwt.length > 8192) {
     return { ok: false, code: "shape" };
   }
   const parts = jwt.split(".");
@@ -60,18 +62,33 @@ function validateJwt(jwt) {
     return { ok: false, code: "decode" };
   }
   if (!header || typeof header !== "object") return { ok: false, code: "header" };
-  if (header.typ && header.typ !== "JWT") return { ok: false, code: "typ" };
-  // Supabase default e HS256; HS384/HS512 nao sao usados, mas aceitamos
-  // qualquer HS* pra nao quebrar se o projeto rotacionar algoritmo.
-  if (typeof header.alg !== "string" || !/^HS\d+$/.test(header.alg)) {
+  // Nao checar header.typ: RFC 9068 introduziu "at+jwt" para access tokens e
+  // Supabase pode usar variacoes ao longo da migracao para chaves assimetricas.
+  // Servidor valida a assinatura — typ aqui e' so' metadata.
+  //
+  // Supabase legado usava HS256 (HMAC simetrico). A partir de 2026-Q2 a
+  // plataforma migra projetos para chaves assimetricas (ES256 default,
+  // RS256/PS256 opcionais; EdDSA para projetos novos). Aceitamos todos
+  // os algoritmos modernos comuns. Rejeitamos so' "none" (classic JWT
+  // attack) e algoritmos desconhecidos. A validacao real e' no servidor
+  // — aqui so' filtramos lixo obvio antes de salvar no chrome.storage.
+  if (typeof header.alg !== "string"
+      || !/^(HS|RS|ES|PS)(256|384|512)$|^EdDSA$/.test(header.alg)) {
     return { ok: false, code: "alg" };
   }
   if (!payload || typeof payload !== "object") return { ok: false, code: "payload" };
   if (!isUuid(payload.sub)) return { ok: false, code: "sub" };
-  if (!isFiniteNum(payload.exp) || !isFiniteNum(payload.iat)) {
-    return { ok: false, code: "claims" };
-  }
-  if (payload.aud !== "authenticated") return { ok: false, code: "aud" };
+  // `iat` e' opcional (nem todo emissor inclui). `exp` e' obrigatorio para
+  // checagem de expiracao.
+  if (!isFiniteNum(payload.exp)) return { ok: false, code: "claims" };
+  if ("iat" in payload && !isFiniteNum(payload.iat)) return { ok: false, code: "claims" };
+  // `aud` pode ser string ("authenticated") ou array (["authenticated", ...])
+  // conforme RFC 7519. Supabase historicamente usa string, mas tokens emitidos
+  // via OAuth federation as vezes vem como array.
+  const aud = payload.aud;
+  const audOk = aud === "authenticated"
+    || (Array.isArray(aud) && aud.includes("authenticated"));
+  if (!audOk) return { ok: false, code: "aud" };
   const nowSec = Math.floor(Date.now() / 1000);
   if (payload.exp <= nowSec) return { ok: false, code: "expired" };
   return { ok: true, payload };
@@ -114,7 +131,11 @@ async function loadState() {
       $("userline").className = "muted small";
     } else {
       const key = r.code === "expired" ? "popupTokenExpired" : "popupTokenInvalid";
-      $("userline").textContent = M(key);
+      // Sufixo com o codigo da falha facilita diagnostico ("aud", "alg",
+      // "sub", "shape", "decode", ...). Sem isso o usuario ve so' "Token
+      // invalido" e nao da pra debugar.
+      const suffix = r.code && r.code !== "expired" ? ` [${r.code}]` : "";
+      $("userline").textContent = M(key) + suffix;
       $("userline").className = "small err";
     }
   } else {
@@ -160,20 +181,54 @@ async function loadState() {
   }
 }
 
+// Aceita 2 formatos no campo de input:
+//   - Bundle JSON `{"access_token","refresh_token","expires_at"}` — modo v0.2.0+
+//     com refresh automatico no background.js (trader cola 1x, vive ate cancelar).
+//   - JWT cru (string base64url.base64url.base64url) — modo legado v0.1.x
+//     (trader recola toda 1h ate atualizar a extensao).
+// Detecta o formato testando JSON parse + presenca de access_token.
+function parseInput(raw) {
+  const s = raw.trim();
+  if (!s) return null;
+  if (s.startsWith("{")) {
+    try {
+      const obj = JSON.parse(s);
+      if (obj && typeof obj.access_token === "string") {
+        return {
+          mode: "bundle",
+          access_token: obj.access_token,
+          refresh_token: typeof obj.refresh_token === "string" ? obj.refresh_token : "",
+          expires_at: Number.isFinite(obj.expires_at) ? obj.expires_at : null,
+        };
+      }
+    } catch (_e) { /* cai no fallback abaixo */ }
+  }
+  // Fallback: trata como JWT cru.
+  return { mode: "legacy", access_token: s, refresh_token: "", expires_at: null };
+}
+
 $("save").addEventListener("click", async () => {
-  const jwt = $("jwt").value.trim();
-  if (!jwt) return;
+  const parsed = parseInput($("jwt").value);
+  if (!parsed) return;
   // Pre-flight: nao deixa o usuario salvar lixo (cola errada, JWT expirado,
   // chave de outro projeto). O servidor ainda valida na hora de usar — mas
   // bloquear aqui dá feedback imediato no popup.
-  const r = validateJwt(jwt);
+  const r = validateJwt(parsed.access_token);
   if (!r.ok) {
     const key = r.code === "expired" ? "popupTokenExpired" : "popupTokenInvalid";
-    $("userline").textContent = M(key);
+    const suffix = r.code && r.code !== "expired" ? ` [${r.code}]` : "";
+    $("userline").textContent = M(key) + suffix;
     $("userline").className = "small err";
     return;
   }
-  await chrome.storage.local.set({ jwt });
+  // Para o background.js, `jwt` continua sendo a chave do access_token (compat
+  // com versoes anteriores). refresh_token e expires_at sao opcionais: se vazios,
+  // o background.js fica em modo legado (sem refresh, trader recola quando 401).
+  await chrome.storage.local.set({
+    jwt: parsed.access_token,
+    refresh_token: parsed.refresh_token,
+    expires_at: parsed.expires_at,
+  });
   await loadState();
 });
 
