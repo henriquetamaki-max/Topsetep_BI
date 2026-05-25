@@ -1,15 +1,15 @@
-# BI TopStep — Live Monitor (Chrome MV3)
+# X-Metrics — Live Monitor (Chrome MV3)
 
-Extensão que captura posição e PnL em `topstepx.com/trade` e envia para o BI TopStep via Supabase Edge Function (`live-ingest`).
+Extensão que captura posição e PnL em `topstepx.com/trade` e envia para o X-Metrics via Supabase Edge Function (`live-ingest`).
 
 ## Instalação (load unpacked)
 
 1. Descompacte o `.zip` numa pasta que você vai manter (a extensão é carregada desse caminho).
 2. Abra `chrome://extensions` e ative o **Modo Desenvolvedor** (toggle no canto superior direito).
 3. Clique em **"Carregar sem compactação"** e selecione a pasta descompactada.
-4. Clique no ícone da extensão na barra de ferramentas → cole o **JWT** que você copiou em **BI TopStep → Account → Extensão Live Monitor**.
+4. Clique no ícone da extensão na barra de ferramentas → cole o **JWT** que você copiou em **X-Metrics → Account → Extensão Live Monitor**.
 5. Clique em **Save token** e depois em **Test connection**. Resposta verde = pronto.
-6. Abra https://topstepx.com/trade. A posição deve aparecer no painel **Live** do BI TopStep em poucos segundos.
+6. Abra https://topstepx.com/trade. A posição deve aparecer no painel **Live** do X-Metrics em poucos segundos.
 
 ## Arquivos
 
@@ -39,4 +39,4 @@ Se o popup mostrar **"Scrape: selectors out of date"**:
 
 ## Suporte
 
-Veja `live.install.steps` em [BI TopStep — aba Live].
+Veja `live.install.steps` em [X-Metrics — aba Live].

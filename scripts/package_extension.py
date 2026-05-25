@@ -6,12 +6,21 @@ Uso:
     .venv/Scripts/python.exe scripts/package_extension.py
     # ou via CLI:
     .venv/Scripts/python.exe scripts/package_extension.py --supabase-url https://X --anon-key YYY
+    # sem bump (re-empacotar a mesma versao):
+    .venv/Scripts/python.exe scripts/package_extension.py --no-bump
+    # bump diferente:
+    .venv/Scripts/python.exe scripts/package_extension.py --bump minor
 
 Comportamento:
-- Le `extension/manifest.json` para extrair a versao.
+- **Auto-bump de versao por default (patch)**: a cada build, incrementa o
+  ultimo segmento de SemVer em `extension/manifest.json` E `extension/config.js`
+  (campo VERSION). Ex.: 0.1.0 -> 0.1.1. Os arquivos sao reescritos no disco
+  (commitar a mudanca no git). Use --no-bump para re-empacotar sem mexer na
+  versao, ou --bump minor/major para bumps maiores.
 - Substitui SUPABASE_URL e SUPABASE_ANON_KEY em `extension/config.js` se as
   flags --supabase-url / --anon-key forem passadas (uma copia temporaria do
-  config.js e' gerada dentro do zip; o arquivo original NAO e' modificado).
+  config.js e' gerada dentro do zip; o arquivo original NAO e' modificado por
+  essas flags — so' a versao e' persistida).
 - Gera 2 zips: `extension-latest.zip` e `extension-<version>.zip` em
   `dist/extension/`.
 - Upload manual: subir `extension-latest.zip` no Storage do Supabase
@@ -52,6 +61,59 @@ INCLUDE_PATTERNS = [
 def _read_version() -> str:
     manifest = json.loads((EXT_DIR / "manifest.json").read_text(encoding="utf-8"))
     return str(manifest.get("version", "0.0.0"))
+
+
+def _bump_version(version: str, kind: str) -> str:
+    """Incrementa SemVer X.Y.Z conforme `kind` (major|minor|patch).
+
+    Aceita versoes nao-canonicas (ex.: "0.1") completando com zeros a' direita
+    para forcar 3 segmentos. Rejeita segmentos nao numericos com ValueError.
+    """
+    parts = version.split(".")
+    while len(parts) < 3:
+        parts.append("0")
+    try:
+        major, minor, patch = (int(p) for p in parts[:3])
+    except ValueError as e:
+        raise ValueError(f"versao nao numerica em manifest.json: {version!r}") from e
+    if kind == "major":
+        return f"{major + 1}.0.0"
+    if kind == "minor":
+        return f"{major}.{minor + 1}.0"
+    if kind == "patch":
+        return f"{major}.{minor}.{patch + 1}"
+    raise ValueError(f"--bump invalido: {kind!r} (use major|minor|patch)")
+
+
+def _persist_version(new_version: str) -> None:
+    """Reescreve manifest.json e config.js com a nova versao.
+
+    manifest.json: substitui o valor da chave "version" preservando
+    indentacao/ordem das outras chaves (json.dump com indent=2 reproduz
+    o estilo do arquivo atual).
+
+    config.js: substitui apenas a string apos `VERSION:` via regex pontual,
+    sem reformatar o resto do arquivo (preserva comentarios e espacamento).
+    """
+    manifest_path = EXT_DIR / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["version"] = new_version
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    config_path = EXT_DIR / "config.js"
+    config_text = config_path.read_text(encoding="utf-8")
+    new_text, n = re.subn(
+        r'VERSION:\s*"[^"]*"',
+        f'VERSION: "{new_version}"',
+        config_text,
+        count=1,
+    )
+    if n == 0:
+        raise RuntimeError("VERSION nao encontrado em config.js — esperado 'VERSION: \"X.Y.Z\"'")
+    config_path.write_text(new_text, encoding="utf-8")
 
 
 def _rewrite_config(content: str, supabase_url: str | None, anon_key: str | None) -> str:
@@ -103,13 +165,32 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Package BI TopStep Live Monitor extension.")
     ap.add_argument("--supabase-url", default=None, help="Inject SUPABASE_URL into config.js")
     ap.add_argument("--anon-key", default=None, help="Inject SUPABASE_ANON_KEY into config.js")
+    ap.add_argument(
+        "--bump",
+        choices=("major", "minor", "patch"),
+        default="patch",
+        help="Tipo de bump SemVer aplicado ao manifest+config.js (default: patch)",
+    )
+    ap.add_argument(
+        "--no-bump",
+        action="store_true",
+        help="Nao incrementa a versao — re-empacota o estado atual",
+    )
     args = ap.parse_args()
 
     if not EXT_DIR.exists():
         print(f"[error] extension dir not found: {EXT_DIR}", file=sys.stderr)
         return 1
 
-    version = _read_version()
+    current = _read_version()
+    if args.no_bump:
+        version = current
+        print(f"[info] --no-bump: mantendo versao atual v{current}")
+    else:
+        version = _bump_version(current, args.bump)
+        _persist_version(version)
+        print(f"[info] bump {args.bump}: v{current} -> v{version} (manifest.json + config.js atualizados)")
+
     if DIST_DIR.exists():
         shutil.rmtree(DIST_DIR)
 

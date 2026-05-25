@@ -219,7 +219,7 @@ def login_screen() -> None:
             email = st.text_input(_t("auth.email"), key="login_email")
             password = st.text_input(_t("auth.password"), type="password", key="login_password")
             submitted = st.form_submit_button(
-                _t("auth.submit_login"), type="primary", use_container_width=True,
+                _t("auth.submit_login"), type="primary", width="stretch",
             )
         if submitted:
             ok, err = _sign_in_email(email.strip(), password)
@@ -230,7 +230,7 @@ def login_screen() -> None:
 
         st.divider()
         st.caption(_t("auth.or_google"))
-        if st.button(_t("auth.btn_google"), use_container_width=True, key="btn_google"):
+        if st.button(_t("auth.btn_google"), width="stretch", key="btn_google"):
             _sign_in_google()
 
     with tab_signup:
@@ -240,7 +240,7 @@ def login_screen() -> None:
                 _t("auth.password_min"), type="password", key="signup_password",
             )
             signup_submitted = st.form_submit_button(
-                _t("auth.submit_signup"), type="primary", use_container_width=True,
+                _t("auth.submit_signup"), type="primary", width="stretch",
             )
         if signup_submitted:
             if len(new_password) < 6:

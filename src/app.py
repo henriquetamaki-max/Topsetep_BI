@@ -335,7 +335,7 @@ def render_dashboard(
                 **PLOTLY_LAYOUT, height=220,
                 title=t("dash.direction_title"), showlegend=False,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     # --- KPIs em pontos ------------------------------------------------------
     st.subheader(t("dash.kpis_pts"))
@@ -371,7 +371,7 @@ def render_dashboard(
             )
         )
         fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.cum_pnl_usd"))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col_eq2:
         fig = go.Figure()
@@ -384,7 +384,7 @@ def render_dashboard(
             )
         )
         fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.cum_points"))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # --- Daily charts (TopStepX style) --------------------------------------
     col_d1, col_d2 = st.columns(2)
@@ -411,7 +411,7 @@ def render_dashboard(
             fig.update_layout(**PLOTLY_LAYOUT, height=320, barmode="relative",
                               legend=dict(orientation="h", y=1.1))
             event = st.plotly_chart(
-                fig, use_container_width=True,
+                fig, width="stretch",
                 key="chart_daily_points",
                 on_select="rerun",
                 selection_mode=("points", "box"),
@@ -438,7 +438,7 @@ def render_dashboard(
             )
             fig.update_layout(**PLOTLY_LAYOUT, height=320, barmode="stack",
                               legend=dict(orientation="h", y=1.1))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     # --- Bar charts por dimensão --------------------------------------------
     col_a, col_b = st.columns(2)
@@ -458,7 +458,7 @@ def render_dashboard(
             )
         )
         fig.update_layout(**PLOTLY_LAYOUT, height=300)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col_b:
         st.subheader(t("dash.pnl_by_hour"))
@@ -471,7 +471,7 @@ def render_dashboard(
             )
         )
         fig.update_layout(**PLOTLY_LAYOUT, height=300, xaxis_title=t("dash.axis_hour"))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     # --- PnL por contrato + heatmap calendário ------------------------------
     col_c, col_d = st.columns([1, 2])
@@ -487,7 +487,7 @@ def render_dashboard(
             )
         )
         fig.update_layout(**PLOTLY_LAYOUT, height=340)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     with col_d:
         st.subheader(t("dash.calendar"))
@@ -557,7 +557,7 @@ def render_dashboard(
             fig.update_layout(**PLOTLY_LAYOUT, height=340)
             fig.update_yaxes(tickfont=dict(size=10))
             event = st.plotly_chart(
-                fig, use_container_width=True,
+                fig, width="stretch",
                 key="chart_calendar",
                 on_select="rerun",
                 selection_mode=("points", "box"),
@@ -582,7 +582,7 @@ def render_dashboard(
                 )
             )
             fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.daily_cum_title"))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         with col_n2:
             fig = go.Figure(
                 go.Bar(
@@ -592,7 +592,7 @@ def render_dashboard(
                 )
             )
             fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.daily_net_title"))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     # --- Trade Duration Analysis + Win Rate Analysis -------------------------
     duration_buckets = metrics.compute_duration_buckets(df)
@@ -610,7 +610,7 @@ def render_dashboard(
             )
             fig.update_layout(**PLOTLY_LAYOUT, height=380)
             fig.update_yaxes(autorange="reversed")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
         with col_du2:
             st.subheader(t("dash.win_rate_analysis"))
             wr = duration_buckets.copy()
@@ -630,7 +630,7 @@ def render_dashboard(
             fig.update_layout(**PLOTLY_LAYOUT, height=380)
             fig.update_xaxes(range=[0, 110], ticksuffix="%")
             fig.update_yaxes(autorange="reversed")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     st.divider()
 
@@ -693,7 +693,7 @@ def render_dashboard(
                     "points_status": t("dash.groups.col.status"),
                 }
             )
-            st.dataframe(g_show, use_container_width=True, hide_index=True, height=280)
+            st.dataframe(g_show, width="stretch", hide_index=True, height=280)
 
     # --- Aderência ao plano matinal (M5 — fusão Trade_Agent) ----------------
     with st.expander(t("dash.adherence_expander"), expanded=False):
@@ -777,7 +777,7 @@ def render_dashboard(
                     yaxis=dict(visible=False),
                 )
                 st.plotly_chart(
-                    fig_adh, use_container_width=True,
+                    fig_adh, width="stretch",
                     key="chart_adherence_breakdown",
                 )
 
@@ -814,7 +814,7 @@ def render_dashboard(
                 v_show[t("dash.adherence.col.violation")]
                 .map(lambda v: violation_label.get(v, v))
             )
-            st.dataframe(v_show, use_container_width=True, hide_index=True, height=280)
+            st.dataframe(v_show, width="stretch", hide_index=True, height=280)
 
     st.divider()
 
@@ -849,7 +849,7 @@ def render_dashboard(
             "group_id": t("dash.trades.col.group"),
         }
     )
-    st.dataframe(show, use_container_width=True, hide_index=True, height=380)
+    st.dataframe(show, width="stretch", hide_index=True, height=380)
 
 
 def render_coach(
@@ -866,7 +866,7 @@ def render_coach(
         gen_prompt = st.button(
             t("coach.btn_gen_prompt"),
             type="primary",
-            use_container_width=True,
+            width="stretch",
             help=t("coach.btn_gen_prompt_help"),
         )
     with ai_col2:
@@ -893,7 +893,7 @@ def render_coach(
             with btn_col:
                 collapsed = st.session_state.get("coach_prompt_collapsed", False)
                 label = t("coach.btn_expand") if collapsed else t("coach.btn_collapse")
-                if st.button(label, key="toggle_prompt", use_container_width=True):
+                if st.button(label, key="toggle_prompt", width="stretch"):
                     st.session_state["coach_prompt_collapsed"] = not collapsed
                     st.rerun()
 
@@ -933,7 +933,7 @@ def render_coach(
                 save_clicked = st.button(
                     t("coach.btn_save"),
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                     disabled=not response_text.strip(),
                 )
             with status_col:
@@ -1055,7 +1055,7 @@ def render_coach(
         show[col_pnl] = show[col_pnl].map(fmt_money)
         show[col_avg] = show[col_avg].map(fmt_money)
         show[col_wr] = show[col_wr].map(lambda v: f"{v*100:.0f}%")
-        st.dataframe(show, use_container_width=True, hide_index=True)
+        st.dataframe(show, width="stretch", hide_index=True)
 
     with col_leak:
         render_combo_table(t("coach.leaks.title"), coach["leaks"], RED)
@@ -1092,7 +1092,7 @@ def render_coach(
                 **PLOTLY_LAYOUT, height=320,
                 xaxis_title=t("coach.size_axis_x"), yaxis_title=t("coach.size_axis_y"),
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     with col_dist:
         st.subheader(t("coach.dist_title"))
@@ -1118,7 +1118,7 @@ def render_coach(
                 **PLOTLY_LAYOUT, height=320,
                 xaxis_title=t("coach.dist_axis_x"), yaxis_title=t("coach.dist_axis_y"),
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     st.divider()
 
@@ -1169,14 +1169,14 @@ def render_day_plan() -> None:
     )
     if col_today.button(
         t("dayplan.btn_today_chicago"),
-        use_container_width=True,
+        width="stretch",
         key="day_plan_today_chicago",
     ):
         st.session_state["_day_plan_date"] = today_chicago
         st.rerun()
     if col_copy.button(
         t("dayplan.btn_copy_prev"),
-        use_container_width=True,
+        width="stretch",
         key="day_plan_copy_prev",
         help=t("dayplan.btn_copy_prev_help"),
     ):
@@ -1270,7 +1270,7 @@ def render_day_plan() -> None:
     edited = st.data_editor(
         display,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_order=[
             "contract_name", "direction", "max_size",
@@ -1323,17 +1323,17 @@ def render_day_plan() -> None:
     save_clicked = col_save.button(
         t("dayplan.btn_save"),
         type="primary",
-        use_container_width=True,
+        width="stretch",
         key="day_plan_save",
     )
     reload_clicked = col_reload.button(
         t("dayplan.btn_reload"),
-        use_container_width=True,
+        width="stretch",
         key="day_plan_reload",
     )
     clear_clicked = col_clear.button(
         t("dayplan.btn_clear"),
-        use_container_width=True,
+        width="stretch",
         disabled=original.empty,
         help=t("dayplan.btn_clear_help"),
         key="day_plan_clear",
@@ -1352,7 +1352,7 @@ def render_day_plan() -> None:
         if cc1.button(
             t("dayplan.btn_clear_confirm"),
             type="primary",
-            use_container_width=True,
+            width="stretch",
             key="day_plan_clear_confirm",
         ):
             with st.spinner(t("dayplan.clearing")):
@@ -1366,7 +1366,7 @@ def render_day_plan() -> None:
                 st.error(t("dayplan.clear_err", err=result["error"]))
         if cc2.button(
             t("dayplan.btn_clear_cancel"),
-            use_container_width=True,
+            width="stretch",
             key="day_plan_clear_cancel",
         ):
             st.session_state.pop("_day_plan_pending_clear", None)
@@ -1441,7 +1441,7 @@ def render_action_plan() -> None:
     edited = st.data_editor(
         display,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_order=action_plan.EDITABLE_COLUMNS,
         column_config={
@@ -1471,8 +1471,8 @@ def render_action_plan() -> None:
     )
 
     col_save, col_reload, _ = st.columns([1, 1, 4])
-    save_clicked = col_save.button(t("plan.btn_save"), type="primary", use_container_width=True)
-    reload_clicked = col_reload.button(t("plan.btn_reload"), use_container_width=True)
+    save_clicked = col_save.button(t("plan.btn_save"), type="primary", width="stretch")
+    reload_clicked = col_reload.button(t("plan.btn_reload"), width="stretch")
 
     if reload_clicked:
         _load_action_items.clear()
@@ -1532,7 +1532,7 @@ def render_import(user_id: str) -> None:
         st.success(t("import.done", n=last_result["total"]))
         st.dataframe(
             pd.DataFrame(last_result["rows_log"]),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -1543,7 +1543,7 @@ def render_import(user_id: str) -> None:
         key=uploader_key,
     )
     col_btn, _ = st.columns([1, 3])
-    if files and col_btn.button(t("import.btn"), type="primary", use_container_width=True):
+    if files and col_btn.button(t("import.btn"), type="primary", width="stretch"):
         client = auth.get_client()
         total = 0
         rows_log: list[dict] = []
@@ -1576,7 +1576,7 @@ def render_import(user_id: str) -> None:
 with st.sidebar:
     i18n.language_selector()
     st.markdown(f"👤 **{_user.get('email') or _user['id']}**")
-    if st.button(t("auth.sign_out"), use_container_width=True, key="btn_sign_out"):
+    if st.button(t("auth.sign_out"), width="stretch", key="btn_sign_out"):
         auth.sign_out()
     st.divider()
 
@@ -1706,7 +1706,7 @@ with st.sidebar:
         on_change=_sync_selected_days,
         help=t("sidebar.days_help"),
     )
-    if sel_days and st.button(t("sidebar.clear_days"), use_container_width=True):
+    if sel_days and st.button(t("sidebar.clear_days"), width="stretch"):
         st.session_state["selected_days"] = []
         # Remover a key do widget força o multiselect a reler o `default` no
         # próximo run (caso contrário ele preserva o valor anterior).

@@ -125,7 +125,7 @@ def _section_alerts(df: pd.DataFrame) -> None:
     if c_act.button(t("live.alerts.mark_all_read"),
                     key="live_mark_all_read",
                     disabled=(unread == 0),
-                    use_container_width=True):
+                    width="stretch"):
         alerts_mod.mark_all_read()
         _fetch_recent_alerts.clear()
         st.rerun()
@@ -166,14 +166,14 @@ def _section_alerts(df: pd.DataFrame) -> None:
                 if pd.isna(row.get("read_at")):
                     if st.button(t("live.alerts.mark_read"),
                                  key=f"al_read_{aid}",
-                                 use_container_width=True):
+                                 width="stretch"):
                         alerts_mod.mark_read(aid)
                         _fetch_recent_alerts.clear()
                         st.rerun()
                 if pd.isna(row.get("dismissed_at")):
                     if st.button(t("live.alerts.dismiss"),
                                  key=f"al_dis_{aid}",
-                                 use_container_width=True):
+                                 width="stretch"):
                         alerts_mod.mark_dismissed(aid)
                         _fetch_recent_alerts.clear()
                         st.rerun()
@@ -298,11 +298,15 @@ def render_live_tab(user: dict, plan: dict | None) -> None:
         st.caption(t("paywall.import.cta"))
         return
 
-    # Polling automatico: 3s. Se streamlit_autorefresh nao estiver instalado,
-    # cai num botao "Atualizar" — graceful degradation para nao quebrar o app.
+    # Polling automatico: 10s. Era 3s, mas em Streamlit 1.57 + as 3 queries
+    # do Supabase (snapshot, alerts, plan) o render do conjunto Live+Settings+
+    # Account pode ultrapassar 3s e o st_autorefresh dispara RerunException
+    # no meio, deixando as tabs seguintes em branco. 10s mantem a sensacao de
+    # "ao vivo" sem race. Cache interno (TTL=2s) garante que toques rapidos
+    # do usuario nao multiplicam roundtrips.
     try:
         from streamlit_autorefresh import st_autorefresh  # noqa: PLC0415
-        st_autorefresh(interval=3000, key="live_refresh")
+        st_autorefresh(interval=10000, key="live_refresh")
     except Exception:
         if st.button(t("live.refresh"), key="live_manual_refresh"):
             _fetch_last_snapshot.clear()
@@ -313,7 +317,7 @@ def render_live_tab(user: dict, plan: dict | None) -> None:
 
     # Componente JS embutido que dispara Web Notifications quando uma nova
     # linha em `alerts` chega via Supabase Realtime. Render UMA vez por
-    # carregamento da aba — o st_autorefresh recria o iframe a cada 3s mas
+    # carregamento da aba — o st_autorefresh recria o iframe a cada 10s mas
     # o supabase-js dentro dele resubscreve sem custo.
     _inject_web_notifications(user_id)
 

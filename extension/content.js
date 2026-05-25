@@ -1,4 +1,4 @@
-// BI TopStep — Live Monitor — Content Script
+// X-Metrics — Live Monitor — Content Script
 //
 // Roda em topstepx.com/*. Scrape periodico (5s) de posicao + PnL,
 // envia para background.js via runtime.sendMessage quando mudar.
@@ -140,7 +140,7 @@
 
   async function init() {
     selectorsCfg = await loadSelectors();
-    console.log("[BI TopStep] content.js v" +
+    console.log("[X-Metrics] content.js v" +
       (selectorsCfg?.version || "?") + " ready (path: " + location.pathname + ")");
     setInterval(loopOnce, POLL_MS);
     // primeira chamada imediata
