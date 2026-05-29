@@ -90,6 +90,13 @@ def _status(v: float) -> str:
     return "Flat"
 
 
+def _to_int(v) -> int:
+    """Cast defensivo: `size`/`total_size` são Int64 nullable — um trade com
+    size NaN propaga <NA> no sum e `int(<NA>)` levanta. Coerge NaN → 0."""
+    n = pd.to_numeric(v, errors="coerce")
+    return int(n) if pd.notna(n) else 0
+
+
 # ---------------------------------------------------------------------------
 # Aderência ao plano matinal (daily_plans) — M5 da fusão com Trade_Agent
 # ---------------------------------------------------------------------------
@@ -175,12 +182,12 @@ def compute_plan_adherence(groups: pd.DataFrame, plans: pd.DataFrame) -> dict:
         if max_size is None:
             continue
         prev = day_cumulative.get(key, 0)
-        new_total = prev + int(row["total_size"])
+        new_total = prev + _to_int(row["total_size"])
         day_cumulative[key] = new_total
         # Marca creep apenas se já há volume anterior (>0) e o acumulado
         # acabou de cruzar — operações isoladas que estouram sozinhas viram
         # size_exceeded, não creep.
-        if prev > 0 and new_total > int(max_size) and int(row["total_size"]) <= int(max_size):
+        if prev > 0 and new_total > int(max_size) and _to_int(row["total_size"]) <= int(max_size):
             creep_flags[int(row["group_id"])] = int(max_size)
 
     def _classify(row: pd.Series) -> pd.Series:
@@ -201,7 +208,7 @@ def compute_plan_adherence(groups: pd.DataFrame, plans: pd.DataFrame) -> dict:
                 })
             return pd.Series({"violation_type": "unplanned", "plan_max_size": pd.NA})
 
-        if int(row["total_size"]) > int(max_size):
+        if _to_int(row["total_size"]) > int(max_size):
             return pd.Series({
                 "violation_type": "size_exceeded",
                 "plan_max_size": int(max_size),
