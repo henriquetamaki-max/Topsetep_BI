@@ -1547,8 +1547,15 @@ def render_import(user_id: str) -> None:
         client = auth.get_client()
         total = 0
         rows_log: list[dict] = []
-        with st.spinner(t("import.processing", n=len(files))):
-            for f in files:
+        n_files = len(files)
+        # st.status transmite progresso por arquivo em tempo real (cada st.write
+        # é "flushed" durante o run) em vez de um spinner mudo. Os upserts são
+        # sequenciais e cada um custa ~rede; sem feedback granular o usuário acha
+        # que travou enquanto a fila de arquivos processa.
+        with st.status(t("import.processing", n=n_files), expanded=True) as status:
+            prog = st.progress(0.0)
+            for i, f in enumerate(files, 1):
+                st.write(t("import.processing_file", i=i, n=n_files, name=f.name))
                 n, fmt, err = ingest_core.ingest_uploaded_csv(f, client, user_id)
                 total += n
                 rows_log.append(
@@ -1559,6 +1566,10 @@ def render_import(user_id: str) -> None:
                         t("import.col.status"): err or "ok",
                     }
                 )
+                prog.progress(i / n_files)
+            status.update(
+                label=t("import.done", n=total), state="complete", expanded=False
+            )
         # Invalida o cache para o próximo load_trades pegar os novos trades.
         load_trades.clear()
         # Rotaciona a key do uploader e dispara rerun: a caixa volta vazia
@@ -1579,6 +1590,13 @@ with st.sidebar:
     if st.button(t("auth.sign_out"), width="stretch", key="btn_sign_out"):
         auth.sign_out()
     st.divider()
+
+# Toast imediato de import recém-concluído, ANTES do reload pesado dos trades:
+# o usuário vê a confirmação sem esperar o load_trades terminar. O banner +
+# tabela detalhada aparecem na aba Import via csv_import_last_result (pop lá).
+_imp_res = st.session_state.get("csv_import_last_result")
+if _imp_res:
+    st.toast(t("import.done", n=_imp_res["total"]), icon="✅")
 
 with st.spinner(t("app.loading")):
     df_all = load_trades(_user["id"])

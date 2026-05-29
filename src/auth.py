@@ -67,21 +67,48 @@ def _client_anon() -> Client:
     return create_client(url, key)
 
 
-def _apply_session_to_client(client: Client, session: dict) -> None:
-    """Aplica access_token+refresh_token no cliente para autenticar requests."""
+def _apply_session_to_client(client: Client, session: dict) -> dict | None:
+    """Aplica access_token+refresh_token no cliente para autenticar requests.
+
+    `set_session` refresca o access_token internamente quando ele expirou,
+    rotacionando o refresh_token (rotação é o default do Supabase). Devolvemos
+    o dict da sessão atualizada para o chamador persistir em st.session_state.
+    Sem isso, o refresh_token rotacionado é descartado entre reruns do Streamlit
+    e o refresh seguinte falha — o cliente perde a auth e as escritas viram 401
+    (upsert do import rejeitado), enquanto as leituras seguem servidas do
+    `@st.cache_data`. Retorna None quando nada mudou."""
     try:
-        client.auth.set_session(session["access_token"], session["refresh_token"])
+        resp = client.auth.set_session(
+            session["access_token"], session["refresh_token"]
+        )
     except Exception:
         # Fallback: alguns SDKs só expõem postgrest.auth().
-        client.postgrest.auth(session["access_token"])
+        try:
+            client.postgrest.auth(session["access_token"])
+        except Exception:
+            pass
+        return None
+    new = getattr(resp, "session", None)
+    if new and getattr(new, "access_token", None) and (
+        new.access_token != session.get("access_token")
+        or new.refresh_token != session.get("refresh_token")
+    ):
+        return _session_to_dict(new)
+    return None
 
 
 def get_client() -> Client:
-    """Cliente Supabase com a sessão do usuário logado aplicada (RLS ativo)."""
+    """Cliente Supabase com a sessão do usuário logado aplicada (RLS ativo).
+
+    Persiste de volta a sessão quando o SDK a refrescou, para que o refresh_token
+    rotacionado não seja perdido entre reruns do Streamlit (ver
+    `_apply_session_to_client`)."""
     c = _client_anon()
     sess = st.session_state.get("session")
     if sess:
-        _apply_session_to_client(c, sess)
+        refreshed = _apply_session_to_client(c, sess)
+        if refreshed:
+            st.session_state["session"] = refreshed
     return c
 
 
