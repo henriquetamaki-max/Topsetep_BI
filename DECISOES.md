@@ -5,6 +5,26 @@ mais recentes no topo. Datas em `AAAA-MM-DD`.
 
 ---
 
+## 2026-05-29 — Release 3.0: Risk Planner pré-trade (arquitetura)
+
+**Contexto:** a 2.0 só avaliava risco retrospectivamente (Risk Guard reativo em `live_snapshots`). A 3.0 muda para planejamento pré-trade: dado saldo + limite de blowout, simular sizing/stops/nº de trades + probabilidade de quebra por ativo, e alimentar o plano matinal.
+
+**Decisões:**
+
+1. **Linha 3.0 isolada em worktree git** (`release/3.0` em `E:\BD\X-Metrics 3.0`), 2.0 mantida em `main` + tag `v2.0.0`. Razão: evoluir 3.0 sem misturar com manutenção da 2.0; `.git` compartilhado, working trees separados.
+
+2. **Saldo + MLL por input manual diário, não em `accounts`.** `accounts` é o mapeamento conta-TopStep→user; saldo é estado financeiro diário e mora no header `risk_plans` (1 linha por `plan_date`). Evita acoplar a um campo `balance` que precisaria de integração de API.
+
+3. **Schema em duas tabelas** (`risk_plans` header + `risk_plan_assets` linha-por-ativo) em vez de um único jsonb. Razão: comparativo consultável + mapeamento 1:1 para `daily_plans`. `result_snapshot jsonb` guarda só o agregado Monte Carlo.
+
+4. **Engine puro (`risk_engine.py`) separado do CRUD/UI.** Sem Streamlit/Supabase: toda a matemática testável isolada (37 testes). Monte Carlo **determinístico** via `numpy.default_rng(seed)` — reprodutível e snapshotável.
+
+5. **Trailing MLL modelado fiel ao TopStep**: Combine traila pelo pico intraday; Express Funded (XFA) traila pelo EOD e trava no saldo inicial ("$0 net"). Buffers 2/3/4.5K (50/100/150K) coincidem com `risk_settings.trailing_drawdown_usd` já existente.
+
+6. **Gravação no `daily_plans` reusa `daily_plan.upsert_plans`** (diff + injeção user_id já testados), respeitando a UNIQUE `(user_id,plan_date,contract_name,direction)`: skip sem `overwrite`, update com `overwrite`. Não duplica o motor de persistência.
+
+**Consequências:** `numpy` agora é dependência explícita. Limitação aceita no MVP: teto de contratos aplicado por-ativo (soma de equivalentes micro/mini = backlog). Per-asset `p_blowout` no comparativo desligado por default (1 Monte Carlo por linha é caro).
+
 ## 2026-05-21 — Hardening pré-deploy + reversões de escopo do loop autônomo
 
 **Contexto:** após codar as 4 fases da fusão, o usuário pediu loop autônomo para evoluir o que desse sem depender dos passos manuais de deploy (bucket Storage, `supabase functions deploy`, archive Trade_Agent). Várias decisões pequenas mas com impacto futuro foram tomadas sem nova rodada de Q&A.
