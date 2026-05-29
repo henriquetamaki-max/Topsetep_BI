@@ -56,6 +56,28 @@ def _trades(rows: list[dict]) -> pd.DataFrame:
     return df
 
 
+class ComputeOverviewDurationNaNTests(unittest.TestCase):
+
+    def test_all_nat_durations_return_zero_not_nan(self):
+        # F-07: trades sem exited_at (NaT) → duration_sec all-NaN. mean() de
+        # série all-NaN devolve nan e float(nan) poluía a UI com "nan".
+        df = _trades([
+            {"pnl_net": 5.0, "type": "Long", "trade_day": "2026-05-20",
+             "entered_at": pd.Timestamp("2026-05-20 10:00", tz="UTC"),
+             "exited_at": pd.NaT},
+            {"pnl_net": -3.0, "type": "Short", "trade_day": "2026-05-20",
+             "entered_at": pd.Timestamp("2026-05-20 10:05", tz="UTC"),
+             "exited_at": pd.NaT},
+        ])
+        # Coluna só-NaT vira tz-naive; produção é timestamptz (tz-aware).
+        df["exited_at"] = pd.to_datetime(df["exited_at"], utc=True)
+        out = metrics.compute_overview(df)
+        for k in ("avg_trade_duration_sec", "avg_win_duration_sec",
+                  "avg_loss_duration_sec"):
+            self.assertEqual(out[k], 0.0, msg=f"{k} deve ser 0.0")
+            self.assertFalse(pd.isna(out[k]), msg=f"{k} não pode ser nan")
+
+
 class ComputeOverviewEmptyTests(unittest.TestCase):
 
     def test_empty_df_returns_complete_zeroed_schema(self):
