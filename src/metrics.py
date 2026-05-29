@@ -761,11 +761,20 @@ def _coach_headline(d: pd.DataFrame, groups: pd.DataFrame) -> list[str]:
     wins = d[d["pnl_net"] > 0]
     losses = d[d["pnl_net"] <= 0]
     win_rate = len(wins) / total if total else 0.0
-    pf = float(wins["pnl_net"].sum() / abs(losses["pnl_net"].sum())) if not losses.empty and losses["pnl_net"].sum() != 0 else 0.0
+    gross_win = float(wins["pnl_net"].sum())
+    gross_loss = float(abs(losses["pnl_net"].sum()))
+    pf = (gross_win / gross_loss) if gross_loss != 0 else 0.0
     avg_win = float(wins["pnl_net"].mean()) if not wins.empty else 0.0
     avg_loss = float(losses["pnl_net"].mean()) if not losses.empty else 0.0
 
-    if pf >= 1.5:
+    # F-06: sem perdas → PF seria 0.0 e cairia em "perdendo mais", o que é
+    # falso. Trata os casos degenerados antes da classificação por PF.
+    if gross_loss == 0:
+        if gross_win > 0:
+            out.append(f"Sem perdas no período: {total} trades, todos não-negativos.")
+        else:
+            out.append(f"Sem P&L realizado: {total} trades zerados no período.")
+    elif pf >= 1.5:
         out.append(f"Profit factor saudável: **{pf:.2f}** — sistema com edge positivo.")
     elif pf >= 1.0:
         out.append(f"Profit factor marginal: **{pf:.2f}** — operando perto do breakeven.")

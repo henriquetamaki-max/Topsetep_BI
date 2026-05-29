@@ -397,6 +397,37 @@ class CoachSizeBucketsTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# _coach_headline (profit factor degenerado)
+# ---------------------------------------------------------------------------
+
+
+class CoachHeadlineTests(unittest.TestCase):
+
+    def test_all_flat_not_classified_as_losing(self):
+        # F-06: carteira toda zerada (pnl_net==0) tinha PF=0.0 e era rotulada
+        # "perdendo mais do que ganha" — falso.
+        d = pd.DataFrame({"pnl_net": [0.0, 0.0, 0.0]})
+        out = metrics._coach_headline(d, pd.DataFrame())
+        joined = " ".join(out)
+        self.assertIn("Sem P&L realizado", joined)
+        self.assertNotIn("perdendo mais", joined)
+
+    def test_all_winners_not_classified_as_losing(self):
+        # F-06: só vencedores (sem perdas) também caía em "perdendo mais".
+        d = pd.DataFrame({"pnl_net": [5.0, 3.0, 2.0]})
+        out = metrics._coach_headline(d, pd.DataFrame())
+        joined = " ".join(out)
+        self.assertIn("Sem perdas", joined)
+        self.assertNotIn("perdendo mais", joined)
+
+    def test_losing_book_still_flagged(self):
+        # Regressão: carteira perdedora real continua classificada como tal.
+        d = pd.DataFrame({"pnl_net": [1.0, -10.0, -8.0]})
+        out = metrics._coach_headline(d, pd.DataFrame())
+        self.assertIn("Profit factor abaixo de 1", " ".join(out))
+
+
+# ---------------------------------------------------------------------------
 # _coach_points_dist
 # ---------------------------------------------------------------------------
 
