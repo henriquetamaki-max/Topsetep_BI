@@ -1,6 +1,7 @@
 streamlit>=1.36
 streamlit-autorefresh>=1.0
 pandas>=2.2
+numpy>=1.26
 plotly>=5.22
 supabase>=2.5
 python-dotenv>=1.0
