@@ -77,6 +77,17 @@ class ComputePlanAdherenceTests(unittest.TestCase):
         self.assertEqual(r["compliant"], 0)
         self.assertEqual(r["score_pct"], 0.0)
 
+    def test_nan_total_size_does_not_crash(self):
+        # F-04: total_size é soma de size (Int64 nullable). Um grupo com size
+        # NaN propaga <NA>; int(<NA>) levantaria. _to_int coage NaN → 0.
+        groups = pd.DataFrame([_make_group(1, "MNQ", "Long", 3, "2026-05-20 14:30")])
+        groups["total_size"] = pd.array([pd.NA], dtype="Int64")
+        plans = pd.DataFrame([_make_plan("2026-05-20", "MNQ", "Long", 4)])
+        r = metrics.compute_plan_adherence(groups, plans)  # não deve levantar
+        self.assertEqual(r["total_groups"], 1)
+        # NaN→0 ≤ max_size(4) → compliant, não size_exceeded.
+        self.assertEqual(r["size_exceeded"], 0)
+
     def test_against_plan_direction(self):
         # Plano Long; operacao Short no mesmo contrato e dia.
         groups = pd.DataFrame([_make_group(1, "MNQ", "Short", 2, "2026-05-20 14:30")])

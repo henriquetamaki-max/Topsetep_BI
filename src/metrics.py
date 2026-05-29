@@ -90,6 +90,13 @@ def _status(v: float) -> str:
     return "Flat"
 
 
+def _to_int(v) -> int:
+    """Cast defensivo: `size`/`total_size` são Int64 nullable — um trade com
+    size NaN propaga <NA> no sum e `int(<NA>)` levanta. Coerge NaN → 0."""
+    n = pd.to_numeric(v, errors="coerce")
+    return int(n) if pd.notna(n) else 0
+
+
 # ---------------------------------------------------------------------------
 # Aderência ao plano matinal (daily_plans) — M5 da fusão com Trade_Agent
 # ---------------------------------------------------------------------------
@@ -175,12 +182,12 @@ def compute_plan_adherence(groups: pd.DataFrame, plans: pd.DataFrame) -> dict:
         if max_size is None:
             continue
         prev = day_cumulative.get(key, 0)
-        new_total = prev + int(row["total_size"])
+        new_total = prev + _to_int(row["total_size"])
         day_cumulative[key] = new_total
         # Marca creep apenas se já há volume anterior (>0) e o acumulado
         # acabou de cruzar — operações isoladas que estouram sozinhas viram
         # size_exceeded, não creep.
-        if prev > 0 and new_total > int(max_size) and int(row["total_size"]) <= int(max_size):
+        if prev > 0 and new_total > int(max_size) and _to_int(row["total_size"]) <= int(max_size):
             creep_flags[int(row["group_id"])] = int(max_size)
 
     def _classify(row: pd.Series) -> pd.Series:
@@ -201,7 +208,7 @@ def compute_plan_adherence(groups: pd.DataFrame, plans: pd.DataFrame) -> dict:
                 })
             return pd.Series({"violation_type": "unplanned", "plan_max_size": pd.NA})
 
-        if int(row["total_size"]) > int(max_size):
+        if _to_int(row["total_size"]) > int(max_size):
             return pd.Series({
                 "violation_type": "size_exceeded",
                 "plan_max_size": int(max_size),
@@ -478,9 +485,9 @@ def compute_overview(df: pd.DataFrame) -> dict:
         "total_lots": int(pd.to_numeric(d["size"], errors="coerce").fillna(0).sum()),
         "avg_winning_trade": float(wins["pnl_net"].mean()) if not wins.empty else 0.0,
         "avg_losing_trade": float(losses["pnl_net"].mean()) if not losses.empty else 0.0,
-        "avg_trade_duration_sec": float(d["duration_sec"].mean()),
-        "avg_win_duration_sec": float(wins["duration_sec"].mean()) if not wins.empty else 0.0,
-        "avg_loss_duration_sec": float(losses["duration_sec"].mean()) if not losses.empty else 0.0,
+        "avg_trade_duration_sec": float(d["duration_sec"].mean()) if d["duration_sec"].notna().any() else 0.0,
+        "avg_win_duration_sec": float(wins["duration_sec"].mean()) if not wins.empty and wins["duration_sec"].notna().any() else 0.0,
+        "avg_loss_duration_sec": float(losses["duration_sec"].mean()) if not losses.empty and losses["duration_sec"].notna().any() else 0.0,
         "day_win_pct": day_win_pct,
         "winning_days": winning_days,
         "total_days": total_days,
@@ -701,6 +708,11 @@ def _coach_combo(d: pd.DataFrame, kind: str) -> pd.DataFrame:
 
     kind='leak' → piores (PnL negativo); kind='strength' → melhores.
     """
+    # `weekday`/`entry_hour` são derivadas em load_trades (app.py); um caller
+    # fora da UI (teste, CLI, outra origem) pode não tê-las. Guarda espelha
+    # _coach_size_buckets — devolve vazio em vez de KeyError.
+    if not {"contract_name", "weekday", "entry_hour"}.issubset(d.columns):
+        return pd.DataFrame()
     g = d.groupby(["contract_name", "weekday", "entry_hour"], as_index=False).agg(
         trades=("id", "count"),
         pnl=("pnl_net", "sum"),
@@ -749,11 +761,20 @@ def _coach_headline(d: pd.DataFrame, groups: pd.DataFrame) -> list[str]:
     wins = d[d["pnl_net"] > 0]
     losses = d[d["pnl_net"] <= 0]
     win_rate = len(wins) / total if total else 0.0
-    pf = float(wins["pnl_net"].sum() / abs(losses["pnl_net"].sum())) if not losses.empty and losses["pnl_net"].sum() != 0 else 0.0
+    gross_win = float(wins["pnl_net"].sum())
+    gross_loss = float(abs(losses["pnl_net"].sum()))
+    pf = (gross_win / gross_loss) if gross_loss != 0 else 0.0
     avg_win = float(wins["pnl_net"].mean()) if not wins.empty else 0.0
     avg_loss = float(losses["pnl_net"].mean()) if not losses.empty else 0.0
 
-    if pf >= 1.5:
+    # F-06: sem perdas → PF seria 0.0 e cairia em "perdendo mais", o que é
+    # falso. Trata os casos degenerados antes da classificação por PF.
+    if gross_loss == 0:
+        if gross_win > 0:
+            out.append(f"Sem perdas no período: {total} trades, todos não-negativos.")
+        else:
+            out.append(f"Sem P&L realizado: {total} trades zerados no período.")
+    elif pf >= 1.5:
         out.append(f"Profit factor saudável: **{pf:.2f}** — sistema com edge positivo.")
     elif pf >= 1.0:
         out.append(f"Profit factor marginal: **{pf:.2f}** — operando perto do breakeven.")

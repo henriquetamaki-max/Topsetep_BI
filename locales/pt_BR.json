@@ -324,6 +324,7 @@
   "import.uploader": "Arquivos CSV",
   "import.btn": "Importar",
   "import.processing": "Processando {n} arquivo(s)…",
+  "import.processing_file": "Processando {i}/{n}: {name}",
   "import.done": "Importação concluída: {n} trades upsertados.",
   "import.col.file": "Arquivo",
   "import.col.format": "Formato",

@@ -291,6 +291,29 @@ class CoachLosingStreakTests(unittest.TestCase):
 
 class CoachComboTests(unittest.TestCase):
 
+    def test_combo_missing_derived_columns_returns_empty(self):
+        # F-01: weekday/entry_hour são derivadas só em load_trades. Caller fora
+        # da UI não as tem — deve devolver vazio, não KeyError.
+        df = pd.DataFrame({"pnl_net": [1.0, -1.0, 2.0], "id": [1, 2, 3],
+                           "contract_name": ["MNQ", "MNQ", "MNQ"]})
+        self.assertTrue(metrics._coach_combo(df, kind="leak").empty)
+        self.assertTrue(metrics._coach_combo(df, kind="strength").empty)
+
+    def test_compute_coach_survives_missing_derived_columns(self):
+        # F-01: o orquestrador completo não pode explodir sem weekday/entry_hour.
+        df = pd.DataFrame({
+            "id": [1, 2], "pnl_net": [5.0, -3.0], "points": [1.0, -0.5],
+            "size": [1, 1], "type": ["Long", "Short"],
+            "contract_name": ["MNQ", "MNQ"],
+            "entered_at": pd.to_datetime(["2026-05-20 10:00", "2026-05-20 10:10"]),
+            "exited_at": pd.to_datetime(["2026-05-20 10:01", "2026-05-20 10:13"]),
+            "trade_day_et": ["2026-05-20", "2026-05-20"],
+        })
+        out = metrics.compute_coach(df, pd.DataFrame())
+        self.assertEqual(set(out.keys()), EXPECTED_COACH_KEYS)
+        self.assertTrue(out["leaks"].empty)
+        self.assertTrue(out["strengths"].empty)
+
     def test_combo_requires_min_trades_threshold(self):
         # Cada combinacao tem 1-2 trades — abaixo do LEAK_MIN_TRADES (3).
         df = _prep_for_private(_trades_for_coach([
@@ -371,6 +394,37 @@ class CoachSizeBucketsTests(unittest.TestCase):
         self.assertAlmostEqual(out.loc[1, "win_rate"], 0.5)
         self.assertEqual(out.loc[2, "trades"], 2)
         self.assertAlmostEqual(out.loc[2, "total_pnl"], 10.0)
+
+
+# ---------------------------------------------------------------------------
+# _coach_headline (profit factor degenerado)
+# ---------------------------------------------------------------------------
+
+
+class CoachHeadlineTests(unittest.TestCase):
+
+    def test_all_flat_not_classified_as_losing(self):
+        # F-06: carteira toda zerada (pnl_net==0) tinha PF=0.0 e era rotulada
+        # "perdendo mais do que ganha" — falso.
+        d = pd.DataFrame({"pnl_net": [0.0, 0.0, 0.0]})
+        out = metrics._coach_headline(d, pd.DataFrame())
+        joined = " ".join(out)
+        self.assertIn("Sem P&L realizado", joined)
+        self.assertNotIn("perdendo mais", joined)
+
+    def test_all_winners_not_classified_as_losing(self):
+        # F-06: só vencedores (sem perdas) também caía em "perdendo mais".
+        d = pd.DataFrame({"pnl_net": [5.0, 3.0, 2.0]})
+        out = metrics._coach_headline(d, pd.DataFrame())
+        joined = " ".join(out)
+        self.assertIn("Sem perdas", joined)
+        self.assertNotIn("perdendo mais", joined)
+
+    def test_losing_book_still_flagged(self):
+        # Regressão: carteira perdedora real continua classificada como tal.
+        d = pd.DataFrame({"pnl_net": [1.0, -10.0, -8.0]})
+        out = metrics._coach_headline(d, pd.DataFrame())
+        self.assertIn("Profit factor abaixo de 1", " ".join(out))
 
 
 # ---------------------------------------------------------------------------

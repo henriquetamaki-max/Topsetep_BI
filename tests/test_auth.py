@@ -20,6 +20,16 @@ class FakeSessionState(dict):
     pass
 
 
+def _fake_session_obj(access: str, refresh: str, uid: str = "u"):
+    """Mimica o objeto Session do supabase-auth devolvido por set_session."""
+    user = SimpleNamespace(
+        id=uid, email="x@y.com", app_metadata={}, user_metadata={}
+    )
+    return SimpleNamespace(
+        access_token=access, refresh_token=refresh, expires_at=123, user=user
+    )
+
+
 # ---------------------------------------------------------------------------
 # current_user / current_user_id
 # ---------------------------------------------------------------------------
@@ -126,8 +136,35 @@ class ApplySessionToClientTests(unittest.TestCase):
         client = MagicMock()
         client.auth.set_session.side_effect = Exception("not supported")
         sess = {"access_token": "tok", "refresh_token": "rt"}
-        auth._apply_session_to_client(client, sess)
+        out = auth._apply_session_to_client(client, sess)
         client.postgrest.auth.assert_called_once_with("tok")
+        self.assertIsNone(out)
+
+    def test_returns_refreshed_session_when_tokens_rotated(self):
+        # set_session refrescou o access/refresh expirado → devolve o dict novo.
+        client = MagicMock()
+        client.auth.set_session.return_value = SimpleNamespace(
+            session=_fake_session_obj("new_access", "new_refresh")
+        )
+        sess = {"access_token": "old", "refresh_token": "old_rt"}
+        out = auth._apply_session_to_client(client, sess)
+        self.assertIsNotNone(out)
+        self.assertEqual(out["access_token"], "new_access")
+        self.assertEqual(out["refresh_token"], "new_refresh")
+
+    def test_returns_none_when_tokens_unchanged(self):
+        client = MagicMock()
+        client.auth.set_session.return_value = SimpleNamespace(
+            session=_fake_session_obj("tok", "rt")
+        )
+        sess = {"access_token": "tok", "refresh_token": "rt"}
+        self.assertIsNone(auth._apply_session_to_client(client, sess))
+
+    def test_returns_none_when_response_has_no_session(self):
+        client = MagicMock()
+        client.auth.set_session.return_value = SimpleNamespace(session=None)
+        sess = {"access_token": "tok", "refresh_token": "rt"}
+        self.assertIsNone(auth._apply_session_to_client(client, sess))
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +336,25 @@ class GetClientTests(unittest.TestCase):
             out = auth.get_client()
         self.assertIs(out, client)
         client.auth.set_session.assert_called_once_with("tok", "rt")
+
+    def test_persists_refreshed_session_to_state(self):
+        # Regressão: token rotacionado precisa ser regravado em session_state,
+        # senão o próximo rerun usa o refresh_token revogado e perde a auth.
+        client = MagicMock()
+        client.auth.set_session.return_value = SimpleNamespace(
+            session=_fake_session_obj("new_access", "new_refresh")
+        )
+        state = FakeSessionState(
+            session={
+                "access_token": "old", "refresh_token": "old_rt",
+                "user": {"id": "u"},
+            }
+        )
+        with patch.object(auth, "_client_anon", return_value=client), \
+             patch.object(auth.st, "session_state", state):
+            auth.get_client()
+        self.assertEqual(state["session"]["access_token"], "new_access")
+        self.assertEqual(state["session"]["refresh_token"], "new_refresh")
 
 
 # ---------------------------------------------------------------------------
