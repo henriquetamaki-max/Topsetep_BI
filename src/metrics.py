@@ -701,6 +701,11 @@ def _coach_combo(d: pd.DataFrame, kind: str) -> pd.DataFrame:
 
     kind='leak' → piores (PnL negativo); kind='strength' → melhores.
     """
+    # `weekday`/`entry_hour` são derivadas em load_trades (app.py); um caller
+    # fora da UI (teste, CLI, outra origem) pode não tê-las. Guarda espelha
+    # _coach_size_buckets — devolve vazio em vez de KeyError.
+    if not {"contract_name", "weekday", "entry_hour"}.issubset(d.columns):
+        return pd.DataFrame()
     g = d.groupby(["contract_name", "weekday", "entry_hour"], as_index=False).agg(
         trades=("id", "count"),
         pnl=("pnl_net", "sum"),
