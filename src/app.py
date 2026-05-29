@@ -29,6 +29,9 @@ import i18n
 import ingest_core
 import live as live_tab
 import metrics
+import risk_engine
+import risk_plan
+import risk_settings
 import settings as user_settings
 import timezones
 from i18n import t
@@ -1507,6 +1510,299 @@ def render_action_plan() -> None:
 # ----------------------------- Importar CSVs --------------------------------
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_contracts_catalog() -> list[dict]:
+    return risk_plan.list_contracts()
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _run_monte_carlo(
+    balance, mll, dll, risk_usd, win_rate, avg_r, tpd, horizon,
+    mode, buffer, n_sims, seed,
+) -> dict:
+    return risk_engine.monte_carlo(
+        balance_usd=balance, mll_threshold_usd=mll, daily_loss_limit_usd=dll,
+        risk_usd_per_trade=risk_usd, win_rate=win_rate, avg_r=avg_r,
+        trades_per_day=tpd, horizon_days=horizon, trailing_mode=mode,
+        balance_buffer=buffer, n_sims=n_sims, seed=seed,
+    )
+
+
+def render_risk_planner(user: dict, plan: dict | None) -> None:
+    st.subheader(t("riskplanner.title"))
+    st.caption(t("riskplanner.caption"))
+
+    if not billing.has_feature(plan, "risk_planner"):
+        st.warning(t("paywall.riskplanner.blocked"), icon="🔒")
+        st.caption(t("paywall.riskplanner.cta"))
+        return
+
+    # Dia alvo = amanhã em ET (consistente com trade_day_et do resto do sistema).
+    tomorrow_et = (pd.Timestamp.now(tz=timezones.PRIMARY_TZ) + pd.Timedelta(days=1)).date()
+    if "_risk_plan_date" not in st.session_state:
+        st.session_state["_risk_plan_date"] = tomorrow_et
+    sel_date = st.date_input(
+        t("riskplanner.date_label"),
+        value=st.session_state["_risk_plan_date"],
+        format="DD/MM/YYYY",
+        key="_risk_plan_date_input",
+    )
+    st.session_state["_risk_plan_date"] = sel_date
+
+    existing = risk_plan.get_plan(sel_date) or {}
+    rs = risk_settings.get_settings() or {}
+
+    # ----- inputs -----
+    account_types = risk_settings.ACCOUNT_TYPES
+    default_at = existing.get("account_type") or rs.get("account_type") or account_types[0]
+    at_index = account_types.index(default_at) if default_at in account_types else 0
+
+    c1, c2 = st.columns(2)
+    account_type = c1.selectbox(
+        t("riskplanner.account_type"), account_types, index=at_index,
+        key="_rp_account_type",
+    )
+    trailing_mode = c2.selectbox(
+        t("riskplanner.trailing_mode"), ["combine", "xfa"],
+        index=0 if (existing.get("trailing_mode") or "combine") == "combine" else 1,
+        format_func=lambda m: t(f"riskplanner.trailing.{m}"),
+        key="_rp_trailing_mode",
+    )
+
+    size_key = risk_engine.plan_size_key(account_type)
+    buffer = risk_engine.TRAILING_BUFFER.get(size_key) if size_key else None
+    dll_default = float(
+        existing.get("daily_loss_limit_usd")
+        or rs.get("daily_loss_limit_usd")
+        or (risk_engine.DLL_DEFAULT.get(size_key) if size_key else 0.0)
+        or 0.0
+    )
+    balance_default = float(existing.get("balance_usd") or 50000.0)
+    mll_default = float(
+        existing.get("mll_threshold_usd")
+        or (balance_default - buffer if buffer else balance_default)
+    )
+
+    b1, b2, b3 = st.columns(3)
+    balance = b1.number_input(
+        t("riskplanner.balance"), min_value=0.0, value=balance_default,
+        step=500.0, key="_rp_balance",
+    )
+    mll = b2.number_input(
+        t("riskplanner.mll"), min_value=0.0, value=mll_default, step=250.0,
+        help=t("riskplanner.mll_help"), key="_rp_mll",
+    )
+    dll = b3.number_input(
+        t("riskplanner.dll"), min_value=0.0, value=dll_default, step=100.0,
+        help=t("riskplanner.dll_help"), key="_rp_dll",
+    )
+
+    r1, r2, r3 = st.columns(3)
+    risk_mode = r1.radio(
+        t("riskplanner.risk_mode"), ["pct", "usd"],
+        format_func=lambda m: t(f"riskplanner.risk_mode.{m}"),
+        horizontal=True, key="_rp_risk_mode",
+    )
+    risk_value = r2.number_input(
+        t("riskplanner.risk_value"), min_value=0.0,
+        value=float(existing.get("risk_value") or (1.0 if risk_mode == "pct" else 250.0)),
+        step=0.25 if risk_mode == "pct" else 50.0, key="_rp_risk_value",
+    )
+    stop_points = r3.number_input(
+        t("riskplanner.stop_points"), min_value=0.0, value=10.0, step=0.25,
+        key="_rp_stop_points",
+    )
+
+    # ----- validações -----
+    if balance <= 0:
+        st.warning(t("riskplanner.err.balance_mll"))
+        return
+    distance = risk_engine.distance_to_blowout(balance, mll)
+    if distance <= 0:
+        st.error(t("riskplanner.err.distance_negative"))
+    if stop_points <= 0:
+        st.warning(t("riskplanner.err.stop"))
+        return
+    if size_key is None and dll <= 0:
+        st.warning(t("riskplanner.err.custom_dll"))
+
+    risk_usd = risk_engine.risk_dollars_per_trade(balance, risk_mode, risk_value)
+
+    # ----- KPIs -----
+    n_tr = risk_engine.trades_to_dll(dll, risk_usd)
+    days_bo = risk_engine.days_to_blowout(distance, dll)
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric(t("riskplanner.kpi.risk_per_trade"), f"${risk_usd:,.2f}")
+    k2.metric(t("riskplanner.kpi.trades_to_dll"), n_tr if n_tr else "—")
+    k3.metric(t("riskplanner.kpi.distance"), f"${distance:,.2f}")
+    k4.metric(
+        t("riskplanner.kpi.days_to_blowout"),
+        int(days_bo) if days_bo is not None else "—",
+    )
+
+    # ----- comparativo por ativo -----
+    contracts = _load_contracts_catalog()
+    if not contracts:
+        st.info(t("riskplanner.no_contracts"))
+        return
+    comp = risk_engine.compare_assets(
+        contracts=contracts, balance_usd=balance, mll_threshold_usd=mll,
+        daily_loss_limit_usd=dll, risk_mode=risk_mode, risk_value=risk_value,
+        default_stop_points=stop_points, account_type=account_type,
+        max_position_size=rs.get("max_position_size"),
+    )
+    st.markdown(f"#### {t('riskplanner.compare.title')}")
+    st.caption(t("riskplanner.compare.hint"))
+
+    comp_display = comp.copy()
+    comp_display.insert(0, "selected", False)
+    edited = st.data_editor(
+        comp_display,
+        width="stretch", hide_index=True,
+        column_order=[
+            "selected", "contract_name", "point_value_usd", "max_contracts",
+            "max_stop_points", "risk_usd", "n_trades_to_dll",
+        ],
+        column_config={
+            "selected": st.column_config.CheckboxColumn(
+                t("riskplanner.col.selected"), width="small"),
+            "contract_name": st.column_config.TextColumn(
+                t("riskplanner.col.contract"), disabled=True),
+            "point_value_usd": st.column_config.NumberColumn(
+                t("riskplanner.col.point_value"), format="$%.2f", disabled=True),
+            "max_contracts": st.column_config.NumberColumn(
+                t("riskplanner.col.max_contracts"), disabled=True),
+            "max_stop_points": st.column_config.NumberColumn(
+                t("riskplanner.col.max_stop"), format="%.2f", disabled=True),
+            "risk_usd": st.column_config.NumberColumn(
+                t("riskplanner.col.risk_usd"), format="$%.2f", disabled=True),
+            "n_trades_to_dll": st.column_config.NumberColumn(
+                t("riskplanner.col.n_trades"), disabled=True),
+            "is_micro": None, "p_blowout": None,
+        },
+        key=f"_rp_compare_editor_{sel_date.isoformat()}",
+    )
+
+    selected = edited[edited["selected"]] if "selected" in edited.columns else edited.iloc[0:0]
+    total_sel = int(selected["max_contracts"].fillna(0).sum()) if not selected.empty else 0
+
+    # regras TopStep sobre a seleção
+    for rule in risk_engine.check_rules(
+        account_type=account_type, planned_total_contracts=total_sel,
+    ):
+        if not rule["ok"]:
+            warn_fn = st.error if rule["severity"] == "critical" else st.warning
+            warn_fn(t(rule["detail_key"], **rule["ctx"]))
+
+    cps, cpush, cov, _ = st.columns([1, 1, 1, 2])
+    overwrite = cov.checkbox(t("riskplanner.overwrite"), key="_rp_overwrite")
+
+    if cps.button(t("riskplanner.btn.save"), type="primary", width="stretch", key="_rp_save"):
+        header = {
+            "plan_date": sel_date.isoformat(), "account_type": account_type,
+            "balance_usd": float(balance), "mll_threshold_usd": float(mll),
+            "daily_loss_limit_usd": float(dll) or None, "trailing_mode": trailing_mode,
+            "risk_mode": risk_mode, "risk_value": float(risk_value),
+        }
+        res = risk_plan.upsert_plan(header)
+        if res["ok"] and res["id"]:
+            asset_rows = [{
+                "contract_name": r["contract_name"], "direction": "Long",
+                "max_contracts": int(r["max_contracts"]),
+                "risk_usd": float(r["risk_usd"]) if pd.notna(r["risk_usd"]) else None,
+                "max_stop_points": float(r["max_stop_points"]) if pd.notna(r["max_stop_points"]) else None,
+                "n_trades_to_dll": int(r["n_trades_to_dll"]) if pd.notna(r["n_trades_to_dll"]) else None,
+                "selected": bool(r["selected"]),
+            } for _, r in edited.iterrows()]
+            risk_plan.save_assets(res["id"], asset_rows)
+            st.success(t("riskplanner.save_ok"))
+        else:
+            st.error(t("riskplanner.save_err", err=res.get("error")))
+
+    if cpush.button(
+        t("riskplanner.btn_push"), width="stretch", key="_rp_push",
+        disabled=selected.empty,
+    ):
+        with st.spinner(t("riskplanner.pushing")):
+            res = risk_plan.push_to_daily_plans(sel_date, selected, overwrite=overwrite)
+        if res["ok"]:
+            if res["inserted"] == 0 and res["updated"] == 0 and res.get("skipped", 0) > 0:
+                st.info(t("riskplanner.push_skipped", n=res["skipped"]))
+            else:
+                st.success(t(
+                    "riskplanner.push_ok",
+                    ins=res["inserted"], upd=res["updated"], skip=res.get("skipped", 0),
+                ))
+            _load_day_plans.clear()
+        else:
+            st.error(t("riskplanner.push_err", err=res.get("error")))
+
+    # ----- Monte Carlo de blowout -----
+    with st.expander(t("riskplanner.section.mc")):
+        m1, m2, m3 = st.columns(3)
+        win_rate = m1.number_input(
+            t("riskplanner.mc.win_rate"), min_value=0.0, max_value=1.0,
+            value=0.5, step=0.05, key="_rp_win_rate")
+        avg_r = m2.number_input(
+            t("riskplanner.mc.avg_r"), min_value=0.1, value=1.5, step=0.1,
+            key="_rp_avg_r")
+        tpd = m3.number_input(
+            t("riskplanner.mc.trades_per_day"), min_value=1,
+            value=int(n_tr) if n_tr else 5, step=1, key="_rp_trades_per_day")
+        m4, m5, m6 = st.columns(3)
+        horizon = m4.number_input(
+            t("riskplanner.mc.horizon"), min_value=1, value=20, step=1,
+            key="_rp_horizon_days")
+        n_sims = m5.number_input(
+            t("riskplanner.mc.n_sims"), min_value=100, max_value=50000,
+            value=10000, step=1000, key="_rp_mc_simulations")
+        seed = m6.number_input(
+            t("riskplanner.mc.seed"), min_value=0, value=42, step=1,
+            key="_rp_mc_seed")
+
+        if st.button(t("riskplanner.mc.btn_run"), width="stretch", key="_rp_run_mc"):
+            if risk_usd <= 0:
+                st.warning(t("riskplanner.err.stop"))
+            else:
+                with st.spinner(t("riskplanner.mc.running")):
+                    mc = _run_monte_carlo(
+                        float(balance), float(mll), float(dll), float(risk_usd),
+                        float(win_rate), float(avg_r), int(tpd), int(horizon),
+                        trailing_mode, size_key, int(n_sims), int(seed),
+                    )
+                if mc.get("degenerate"):
+                    st.warning(t("riskplanner.mc.degenerate"))
+                else:
+                    x1, x2, x3, x4 = st.columns(4)
+                    x1.metric(t("riskplanner.mc.p_blowout"), f"{mc['p_blowout']*100:.1f}%")
+                    x2.metric(t("riskplanner.mc.p_dll"), f"{mc['p_hit_dll_any_day']*100:.1f}%")
+                    x3.metric(t("riskplanner.mc.p_profit"), f"{mc['p_profit']*100:.1f}%")
+                    x4.metric(t("riskplanner.mc.expected_equity"), f"${mc['expected_final_equity']:,.0f}")
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(y=mc["equity_curve_p50"], mode="lines", name="P50"))
+                    fig.add_hline(y=mll, line_dash="dash", line_color="#e08585")
+                    fig.update_layout(
+                        title=t("riskplanner.mc.curve_title"), height=300,
+                        margin=dict(t=40, b=20, l=20, r=20),
+                    )
+                    st.plotly_chart(fig, width="stretch")
+                    snap = {k: mc[k] for k in (
+                        "p_blowout", "p_hit_dll_any_day", "p_profit",
+                        "expected_final_equity", "equity_pctiles",
+                        "max_drawdown_pctiles", "n_sims", "seed",
+                    )}
+                    risk_plan.upsert_plan({
+                        "plan_date": sel_date.isoformat(), "account_type": account_type,
+                        "balance_usd": float(balance), "mll_threshold_usd": float(mll),
+                        "daily_loss_limit_usd": float(dll) or None,
+                        "trailing_mode": trailing_mode, "risk_mode": risk_mode,
+                        "risk_value": float(risk_value), "win_rate": float(win_rate),
+                        "avg_r": float(avg_r), "trades_per_day": int(tpd),
+                        "horizon_days": int(horizon), "mc_simulations": int(n_sims),
+                        "mc_seed": int(seed), "result_snapshot": snap,
+                    })
+
+
 def render_import(user_id: str) -> None:
     st.subheader(t("import.subheader"))
     st.caption(t("import.caption"))
@@ -1782,21 +2078,28 @@ adherence = metrics.compute_plan_adherence(groups, plans_all)
 
 # --- Abas --------------------------------------------------------------------
 
+_show_risk = billing.has_feature(_plan, "risk_planner")
 _show_live = billing.has_feature(_plan, "live_monitor")
 _tab_names = [t("tab.dashboard"), t("tab.coach"), t("tab.dayplan"), t("tab.plan"),
               t("tab.import")]
+if _show_risk:
+    _tab_names.append(t("tab.riskplanner"))
 if _show_live:
     _tab_names.append(t("tab.live"))
 _tab_names.extend([t("tab.settings"), t("tab.account")])
 
 _tabs = st.tabs(_tab_names)
 tab_dash, tab_coach, tab_dayplan, tab_plan, tab_import = _tabs[:5]
+_idx = 5
+tab_risk = None
+if _show_risk:
+    tab_risk = _tabs[_idx]
+    _idx += 1
+tab_live = None
 if _show_live:
-    tab_live = _tabs[5]
-    tab_settings, tab_account = _tabs[6], _tabs[7]
-else:
-    tab_live = None
-    tab_settings, tab_account = _tabs[5], _tabs[6]
+    tab_live = _tabs[_idx]
+    _idx += 1
+tab_settings, tab_account = _tabs[_idx], _tabs[_idx + 1]
 
 with tab_dash:
     render_dashboard(
@@ -1822,6 +2125,10 @@ with tab_plan:
 
 with tab_import:
     render_import(_user["id"])
+
+if tab_risk is not None:
+    with tab_risk:
+        render_risk_planner(_user, _plan)
 
 if tab_live is not None:
     with tab_live:
