@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TopstepX - Pullbacks MNQ Bone Zone (Custom Indicator)
 // @namespace    https://topstepx.com/
-// @version      0.3.1
+// @version      0.3.2
 // @description  Port JS do indicador Pine "Pullbacks MNQ - Bone Zone v7.1 PRO" para a charting_library da Topstep — refactor v0.3 (perf, estrutura, segurança); v0.3.1 marcadores como rótulos A+/B/C
 // @author       Henrique
 // @match        https://topstepx.com/*
@@ -16,7 +16,7 @@
 // 3. Abra a aba de gráfico do TopstepX (https://topstepx.com/trade...).
 // 4. No menu de Indicators do gráfico, busque por "Pullbacks MNQ" — aparece em "Custom".
 // 5. Se não aparecer: F12 -> Console -> procure linhas com prefixo "[Pullback MNQ]".
-//    A linha esperada é "custom indicator injetado v0.3.1".
+//    A linha esperada é "custom indicator injetado v0.3.2".
 //
 // Novidades v0.3.0:
 //   - Performance: cache de boundary VWAP CME elimina Intl.DateTimeFormat por barra.
@@ -48,7 +48,7 @@
   // CONFIG — constantes ajustáveis no topo
   // ========================================================================
 
-  const INDICATOR_VERSION = '0.3.1';
+  const INDICATOR_VERSION = '0.3.2';
   const METAINFO_VERSION  = 51;
 
   // Verbosidade do console: 'debug' < 'info' < 'warn' < 'silent'
@@ -327,12 +327,12 @@
         ema50:    { title: 'EMA 50',    histogramBase: 0 },
         ema200:   { title: 'EMA 200',   histogramBase: 0 },
         vwap:     { title: 'VWAP CME',  histogramBase: 0 },
-        long_a:   { title: 'Long A+',   isHidden: false, location: 'BelowBar', plottype: 'shape_label_up'      },
-        long_b:   { title: 'Long B',    isHidden: false, location: 'BelowBar', plottype: 'shape_label_up'      },
-        long_c:   { title: 'Long C',    isHidden: false, location: 'BelowBar', plottype: 'shape_label_up'      },
-        short_a:  { title: 'Short A+',  isHidden: false, location: 'AboveBar', plottype: 'shape_label_down'    },
-        short_b:  { title: 'Short B',   isHidden: false, location: 'AboveBar', plottype: 'shape_label_down'    },
-        short_c:  { title: 'Short C',   isHidden: false, location: 'AboveBar', plottype: 'shape_label_down'    },
+        long_a:   { title: 'Long A+',   isHidden: false, location: 'BelowBar', plottype: 'shape_diamond'       },
+        long_b:   { title: 'Long B',    isHidden: false, location: 'BelowBar', plottype: 'shape_triangle_up'   },
+        long_c:   { title: 'Long C',    isHidden: false, location: 'BelowBar', plottype: 'shape_xcross'        },
+        short_a:  { title: 'Short A+',  isHidden: false, location: 'AboveBar', plottype: 'shape_diamond'       },
+        short_b:  { title: 'Short B',   isHidden: false, location: 'AboveBar', plottype: 'shape_triangle_down' },
+        short_c:  { title: 'Short C',   isHidden: false, location: 'AboveBar', plottype: 'shape_xcross'        },
         entry:    { title: 'Entrada',   histogramBase: 0 },
         stop:     { title: 'Stop Loss', histogramBase: 0 },
         target_2: { title: 'Alvo 1:2',  histogramBase: 0 },
@@ -351,12 +351,12 @@
           ema50:    { linestyle: 0, linewidth: 2, plottype: 0, trackPrice: false, transparency: 0, visible: true, color: COLORS.EMA50 },
           ema200:   { linestyle: 0, linewidth: 2, plottype: 0, trackPrice: false, transparency: 0, visible: true, color: COLORS.EMA200 },
           vwap:     { linestyle: 0, linewidth: 1, plottype: 0, trackPrice: false, transparency: 0, visible: true, color: COLORS.VWAP },
-          long_a:   { color: COLORS.LONG_A,  textColor: '#FFFFFF', transparency: 0, visible: true, size: 'huge',   location: 'BelowBar', plottype: 'shape_label_up',   text: 'A+' },
-          long_b:   { color: COLORS.LONG_B,  textColor: '#000000', transparency: 0, visible: true, size: 'huge',   location: 'BelowBar', plottype: 'shape_label_up',   text: 'B'  },
-          long_c:   { color: COLORS.LONG_C,  textColor: '#000000', transparency: 0, visible: true, size: 'huge',   location: 'BelowBar', plottype: 'shape_label_up',   text: 'C'  },
-          short_a:  { color: COLORS.SHORT_A, textColor: '#FFFFFF', transparency: 0, visible: true, size: 'huge',   location: 'AboveBar', plottype: 'shape_label_down', text: 'A+' },
-          short_b:  { color: COLORS.SHORT_B, textColor: '#000000', transparency: 0, visible: true, size: 'huge',   location: 'AboveBar', plottype: 'shape_label_down', text: 'B'  },
-          short_c:  { color: COLORS.SHORT_C, textColor: '#FFFFFF', transparency: 0, visible: true, size: 'huge',   location: 'AboveBar', plottype: 'shape_label_down', text: 'C'  },
+          long_a:   { color: COLORS.LONG_A,  textColor: COLORS.LONG_A,  transparency: 0, visible: true, size: 'small',  location: 'BelowBar', plottype: 'shape_diamond',       text: 'A+' },
+          long_b:   { color: COLORS.LONG_B,  textColor: COLORS.LONG_B,  transparency: 0, visible: true, size: 'small',  location: 'BelowBar', plottype: 'shape_triangle_up',   text: 'B'  },
+          long_c:   { color: COLORS.LONG_C,  textColor: COLORS.LONG_C,  transparency: 0, visible: true, size: 'small',  location: 'BelowBar', plottype: 'shape_xcross',        text: 'C'  },
+          short_a:  { color: COLORS.SHORT_A, textColor: COLORS.SHORT_A, transparency: 0, visible: true, size: 'small',  location: 'AboveBar', plottype: 'shape_diamond',       text: 'A+' },
+          short_b:  { color: COLORS.SHORT_B, textColor: COLORS.SHORT_B, transparency: 0, visible: true, size: 'small',  location: 'AboveBar', plottype: 'shape_triangle_down',  text: 'B'  },
+          short_c:  { color: COLORS.SHORT_C, textColor: COLORS.SHORT_C, transparency: 0, visible: true, size: 'small',  location: 'AboveBar', plottype: 'shape_xcross',        text: 'C'  },
           entry:    { linestyle: 2, linewidth: 1, plottype: 0, trackPrice: false, transparency: 0, visible: true, color: COLORS.ENTRY },
           stop:     { linestyle: 2, linewidth: 1, plottype: 0, trackPrice: false, transparency: 0, visible: true, color: COLORS.STOP },
           target_2: { linestyle: 2, linewidth: 1, plottype: 0, trackPrice: false, transparency: 0, visible: true, color: COLORS.TGT2 },
