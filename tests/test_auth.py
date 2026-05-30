@@ -328,14 +328,45 @@ class GetClientTests(unittest.TestCase):
         self.assertIs(out, client)
         client.auth.set_session.assert_not_called()
 
-    def test_applies_session_when_present(self):
-        client = MagicMock()
+    def test_applies_session_to_per_session_client(self):
+        # Com sessão, get_client constrói um cliente ISOLADO por sessão
+        # (via _build_client), NÃO o singleton anon compartilhado.
+        per_session = MagicMock()
+        anon = MagicMock()
         sess = {"access_token": "tok", "refresh_token": "rt", "user": {"id": "u"}}
-        with patch.object(auth, "_client_anon", return_value=client), \
+        with patch.object(auth, "_build_client", return_value=per_session), \
+             patch.object(auth, "_client_anon", return_value=anon), \
              patch.object(auth.st, "session_state", FakeSessionState(session=sess)):
             out = auth.get_client()
-        self.assertIs(out, client)
-        client.auth.set_session.assert_called_once_with("tok", "rt")
+        self.assertIs(out, per_session)
+        self.assertIsNot(out, anon)  # não vaza o cliente compartilhado
+        per_session.auth.set_session.assert_called_once_with("tok", "rt")
+
+    def test_caches_client_per_session_in_state(self):
+        # Mesma sessão → mesmo objeto cliente (cacheado em session_state),
+        # sem reconstruir a cada rerun.
+        sess = {"access_token": "tok", "refresh_token": "rt", "user": {"id": "u"}}
+        state = FakeSessionState(session=sess)
+        with patch.object(auth, "_build_client", side_effect=lambda: MagicMock()), \
+             patch.object(auth.st, "session_state", state):
+            first = auth.get_client()
+            second = auth.get_client()
+        self.assertIs(first, second)
+        self.assertIs(state["_authed_client"], first)
+
+    def test_distinct_sessions_get_distinct_clients(self):
+        # Regressão do token-bleed: duas sessões (dois session_state) NÃO
+        # podem compartilhar o mesmo objeto cliente — senão set_session de uma
+        # mutaria o header de auth da outra (vazamento cross-tenant de leitura).
+        builder = lambda: MagicMock()
+        sess_a = {"access_token": "a", "refresh_token": "ra", "user": {"id": "alice"}}
+        sess_b = {"access_token": "b", "refresh_token": "rb", "user": {"id": "bob"}}
+        with patch.object(auth, "_build_client", side_effect=builder):
+            with patch.object(auth.st, "session_state", FakeSessionState(session=sess_a)):
+                client_a = auth.get_client()
+            with patch.object(auth.st, "session_state", FakeSessionState(session=sess_b)):
+                client_b = auth.get_client()
+        self.assertIsNot(client_a, client_b)
 
     def test_persists_refreshed_session_to_state(self):
         # Regressão: token rotacionado precisa ser regravado em session_state,
@@ -350,7 +381,7 @@ class GetClientTests(unittest.TestCase):
                 "user": {"id": "u"},
             }
         )
-        with patch.object(auth, "_client_anon", return_value=client), \
+        with patch.object(auth, "_build_client", return_value=client), \
              patch.object(auth.st, "session_state", state):
             auth.get_client()
         self.assertEqual(state["session"]["access_token"], "new_access")
