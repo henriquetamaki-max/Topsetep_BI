@@ -34,7 +34,13 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // So aceita mensagens da propria extensao (content script em topstepx.com /
+  // popup). Sem externally_connectable no manifest, paginas web ja nao alcancam
+  // o background; este check e defesa-em-profundidade contra msg forjada.
+  if (sender?.id !== chrome.runtime.id) {
+    return; // ignora origem externa
+  }
   (async () => {
     if (msg?.type === "SNAPSHOT_CHANGED" && msg.payload) {
       lastSnapshot = msg.payload;
@@ -134,7 +140,9 @@ async function maybeRefreshToken(cfg) {
   } catch (e) {
     // Rede instavel: usa jwt atual. Se ele tambem ja expirou, sendSnapshot
     // vai pegar 401 e o trader vera no popup.
-    console.warn("[X-Metrics] refresh error:", e);
+    // Loga so' o tipo/mensagem do erro — nunca o objeto resposta, que pode
+    // conter o token na mensagem de 401 do gotrue.
+    console.warn("[X-Metrics] refresh error:", e?.name || "error");
     return { jwt };
   }
 }

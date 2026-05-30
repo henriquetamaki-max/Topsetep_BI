@@ -57,14 +57,25 @@ def _read_secret(*names: str) -> str | None:
     return None
 
 
-@st.cache_resource
-def _client_anon() -> Client:
+def _build_client() -> Client:
+    """Constrói um cliente Supabase novo a partir dos secrets."""
     url = _read_secret("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL")
     key = _read_secret("SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY")
     if not url or not key:
         st.error(_t("auth.err_credentials_missing"))
         st.stop()
     return create_client(url, key)
+
+
+@st.cache_resource
+def _client_anon() -> Client:
+    """Cliente anônimo COMPARTILHADO entre todas as sessões do processo.
+
+    Uso restrito a operações PRÉ-AUTH (login/signup/oauth/signout): não há
+    identidade de usuário aplicada via set_session, então o compartilhamento
+    não vaza dados entre tenants. Para qualquer query autenticada use
+    `get_client()`, que devolve um cliente isolado por sessão."""
+    return _build_client()
 
 
 def _apply_session_to_client(client: Client, session: dict) -> dict | None:
@@ -98,17 +109,29 @@ def _apply_session_to_client(client: Client, session: dict) -> dict | None:
 
 
 def get_client() -> Client:
-    """Cliente Supabase com a sessão do usuário logado aplicada (RLS ativo).
+    """Cliente Supabase autenticado, ISOLADO por sessão Streamlit (RLS ativo).
 
-    Persiste de volta a sessão quando o SDK a refrescou, para que o refresh_token
-    rotacionado não seja perdido entre reruns do Streamlit (ver
-    `_apply_session_to_client`)."""
-    c = _client_anon()
+    NÃO usa o singleton `@st.cache_resource`: ele é compartilhado entre todas as
+    browser sessions do mesmo processo, e `set_session()` muta o header de auth
+    desse cliente único. Sob reruns concorrentes de 2+ sessões, a leitura de um
+    trader poderia sair com o JWT de outro entre o set_session e o `.execute()`
+    → RLS devolveria as linhas do tenant errado (vazamento cross-tenant de
+    leitura; a escrita falha com 403 pois o user_id do payload diverge). Guardamos
+    um cliente por sessão em `st.session_state` (que é per-session), eliminando a
+    mutação cruzada. Persiste a sessão refrescada (refresh_token rotacionado) de
+    volta — ver `_apply_session_to_client`.
+
+    Sem sessão (pré-login), cai no cliente anônimo compartilhado."""
     sess = st.session_state.get("session")
-    if sess:
-        refreshed = _apply_session_to_client(c, sess)
-        if refreshed:
-            st.session_state["session"] = refreshed
+    if not sess:
+        return _client_anon()
+    c = st.session_state.get("_authed_client")
+    if c is None:
+        c = _build_client()
+        st.session_state["_authed_client"] = c
+    refreshed = _apply_session_to_client(c, sess)
+    if refreshed:
+        st.session_state["session"] = refreshed
     return c
 
 

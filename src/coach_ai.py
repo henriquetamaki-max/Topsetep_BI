@@ -24,6 +24,7 @@ from supabase import Client
 import auth
 import i18n
 import metrics
+import timezones
 
 _TZ_SP = ZoneInfo("America/Sao_Paulo")
 
@@ -61,7 +62,7 @@ def _summarize(df: pd.DataFrame, groups: pd.DataFrame) -> dict:
         return {"trades": 0}
 
     pts_kpis = metrics.compute_kpis(df, groups)
-    coach = metrics.compute_coach(df, groups)
+    coach = metrics.compute_coach(df, groups, tz_label=timezones.user_tz_short())
 
     total_pnl = float(df["pnl_net"].sum())
     wins = df[df["pnl_net"] > 0]
