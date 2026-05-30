@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         TopstepX - Pullbacks MNQ Bone Zone (Custom Indicator)
 // @namespace    https://topstepx.com/
-// @version      0.3.0
-// @description  Port JS do indicador Pine "Pullbacks MNQ - Bone Zone v7.1 PRO" para a charting_library da Topstep — refactor v0.3 (perf, estrutura, segurança)
+// @version      0.3.1
+// @description  Port JS do indicador Pine "Pullbacks MNQ - Bone Zone v7.1 PRO" para a charting_library da Topstep — refactor v0.3 (perf, estrutura, segurança); v0.3.1 marcadores como rótulos A+/B/C
 // @author       Henrique
 // @match        https://topstepx.com/*
 // @match        https://*.topstepx.com/*
