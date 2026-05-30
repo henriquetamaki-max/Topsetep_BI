@@ -16,7 +16,7 @@
 // 3. Abra a aba de gráfico do TopstepX (https://topstepx.com/trade...).
 // 4. No menu de Indicators do gráfico, busque por "Pullbacks MNQ" — aparece em "Custom".
 // 5. Se não aparecer: F12 -> Console -> procure linhas com prefixo "[Pullback MNQ]".
-//    A linha esperada é "custom indicator injetado v0.3.0".
+//    A linha esperada é "custom indicator injetado v0.3.1".
 //
 // Novidades v0.3.0:
 //   - Performance: cache de boundary VWAP CME elimina Intl.DateTimeFormat por barra.
@@ -48,7 +48,7 @@
   // CONFIG — constantes ajustáveis no topo
   // ========================================================================
 
-  const INDICATOR_VERSION = '0.3.0';
+  const INDICATOR_VERSION = '0.3.1';
   const METAINFO_VERSION  = 51;
 
   // Verbosidade do console: 'debug' < 'info' < 'warn' < 'silent'
