@@ -48,12 +48,33 @@ LANG_NATIVE_NAME: dict[str, str] = {
 
 
 @st.cache_data(show_spinner=False)
-def _load_locale(code: str) -> dict:
+def _load_locale_cached(code: str, mtime: float) -> dict:
+    # `mtime` entra na chave do cache de proposito: ao editar o JSON, o mtime
+    # muda e esta entrada e' invalidada automaticamente. Nao e' usado no corpo.
+    del mtime
     path = _LOCALES_DIR / f"{code}.json"
     if not path.exists():
         return {}
     with path.open(encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def _load_locale(code: str) -> dict:
+    """Carrega o locale `code`. A chave de cache inclui o mtime do arquivo:
+    editar o JSON invalida a entrada e o proximo rerun recarrega sem reiniciar
+    o servidor. Em producao o arquivo nao muda em runtime, entao o cache age
+    normalmente (1 stat + 1 leitura cacheada por (code, mtime))."""
+    path = _LOCALES_DIR / f"{code}.json"
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return {}
+    return _load_locale_cached(code, mtime)
+
+
+# Reexpoe .clear() para a API publica continuar funcionando
+# (`i18n._load_locale.clear()` usado em testes e limpeza manual).
+_load_locale.clear = _load_locale_cached.clear
 
 
 def init() -> None:
