@@ -1873,6 +1873,116 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
                 })
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def _load_risk_plans_range(user_id: str, start, end):
+    del user_id  # chave de cache (RLS isola no servidor); evita vazar entre users
+    return risk_plan.list_plans_range(start, end)
+
+
+def render_risk_review(user: dict, plan: dict | None, groups, plans) -> None:
+    """Avaliação de Risco retrospectiva (M15): confronta os trades importados
+    (já filtrados pela sidebar) contra o plano de cada dia e diz se o trader
+    cumpriu e onde errou. Backend puro em metrics.compute_risk_review."""
+    st.subheader(t("riskreview.title"))
+    st.caption(t("riskreview.caption"))
+
+    if not billing.has_feature(plan, "risk_planner"):
+        st.warning(t("paywall.riskplanner.blocked"), icon="🔒")
+        st.caption(t("paywall.riskplanner.cta"))
+        return
+
+    if groups is None or groups.empty:
+        st.info(t("riskreview.no_trades"))
+        return
+
+    gdays = pd.to_datetime(groups["group_start"]).dt.tz_convert(
+        timezones.PRIMARY_TZ).dt.date
+    start, end = gdays.min(), gdays.max()
+    risk_plans = _load_risk_plans_range(user["id"], start, end)
+    point_values = {
+        str(c.get("symbol")): c.get("point_value_usd")
+        for c in _load_contracts_catalog() if c.get("symbol")
+    }
+    review = metrics.compute_risk_review(groups, plans, risk_plans, point_values)
+
+    st.caption(t("riskreview.mae_note"))
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric(t("riskreview.kpi.score"),
+              f"{review['clean_days']}/{review['total_days']}",
+              help=t("riskreview.kpi.score.help"))
+    k2.metric(t("riskreview.kpi.stop"), review["stop_furado"])
+    k3.metric(t("riskreview.kpi.risk"), review["risco_excedido"])
+    k4.metric(t("riskreview.kpi.dll"), review["dll_furado"])
+    k5.metric(t("riskreview.kpi.blowout"), review["blowout"])
+
+    by_day = review["by_day"]
+    if by_day.empty:
+        st.info(t("riskreview.no_trades"))
+        return
+
+    vmap = {
+        "stop_furado": t("riskreview.v.stop_furado"),
+        "risco_excedido": t("riskreview.v.risco_excedido"),
+        "dll_furado": t("riskreview.v.dll_furado"),
+        "blowout": t("riskreview.v.blowout"),
+    }
+
+    def _verdict(row) -> str:
+        if not row["has_plan"]:
+            return t("riskreview.verdict.no_plan")
+        if row["clean"]:
+            return "✓ " + t("riskreview.verdict.ok")
+        keys = [k for k in str(row["violations"]).split(",") if k]
+        return " · ".join(vmap.get(k, k) for k in keys)
+
+    disp = by_day.copy()
+    disp["verdict"] = disp.apply(_verdict, axis=1)
+    st.markdown(f"#### {t('riskreview.byday.title')}")
+    st.dataframe(
+        disp, width="stretch", hide_index=True,
+        height=min(len(disp) + 1, 16) * 35 + 3,
+        column_order=["trade_day", "n_ops", "realized_pnl", "planned_dll", "verdict"],
+        column_config={
+            "trade_day": st.column_config.DateColumn(
+                t("riskreview.col.day"), format="DD/MM/YYYY"),
+            "n_ops": st.column_config.NumberColumn(t("riskreview.col.ops")),
+            "realized_pnl": st.column_config.NumberColumn(
+                t("riskreview.col.pnl"), format="$%.2f"),
+            "planned_dll": st.column_config.NumberColumn(
+                t("riskreview.col.dll"), format="$%.0f"),
+            "verdict": st.column_config.TextColumn(
+                t("riskreview.col.verdict"), width="large"),
+        },
+    )
+
+    ops = review["op_violations"]
+    st.markdown(f"#### {t('riskreview.ops.title')}")
+    if ops.empty:
+        st.success(t("riskreview.all_clean"))
+    else:
+        st.dataframe(
+            ops, width="stretch", hide_index=True,
+            height=min(len(ops) + 1, 12) * 35 + 3,
+            column_order=["trade_day", "contract_name", "direction",
+                          "realized_loss", "planned_risk", "excess"],
+            column_config={
+                "trade_day": st.column_config.DateColumn(
+                    t("riskreview.ops.col.day"), format="DD/MM/YYYY"),
+                "contract_name": st.column_config.TextColumn(
+                    t("riskreview.ops.col.contract")),
+                "direction": st.column_config.TextColumn(
+                    t("riskreview.ops.col.dir")),
+                "realized_loss": st.column_config.NumberColumn(
+                    t("riskreview.ops.col.realized"), format="$%.2f"),
+                "planned_risk": st.column_config.NumberColumn(
+                    t("riskreview.ops.col.planned"), format="$%.2f"),
+                "excess": st.column_config.NumberColumn(
+                    t("riskreview.ops.col.excess"), format="$%.2f"),
+            },
+        )
+
+
 def render_import(user_id: str) -> None:
     st.subheader(t("import.subheader"))
     st.caption(t("import.caption"))
@@ -2154,6 +2264,7 @@ _tab_names = [t("tab.dashboard"), t("tab.coach"), t("tab.dayplan"), t("tab.plan"
               t("tab.import")]
 if _show_risk:
     _tab_names.append(t("tab.riskplanner"))
+    _tab_names.append(t("tab.riskreview"))
 if _show_live:
     _tab_names.append(t("tab.live"))
 _tab_names.extend([t("tab.settings"), t("tab.account")])
@@ -2162,8 +2273,11 @@ _tabs = st.tabs(_tab_names)
 tab_dash, tab_coach, tab_dayplan, tab_plan, tab_import = _tabs[:5]
 _idx = 5
 tab_risk = None
+tab_review = None
 if _show_risk:
     tab_risk = _tabs[_idx]
+    _idx += 1
+    tab_review = _tabs[_idx]
     _idx += 1
 tab_live = None
 if _show_live:
@@ -2199,6 +2313,10 @@ with tab_import:
 if tab_risk is not None:
     with tab_risk:
         render_risk_planner(_user, _plan)
+
+if tab_review is not None:
+    with tab_review:
+        render_risk_review(_user, _plan, groups, plans_all)
 
 if tab_live is not None:
     with tab_live:
