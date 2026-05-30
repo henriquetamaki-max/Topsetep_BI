@@ -51,13 +51,13 @@ Para qualquer tarefa que toque mais de 1 arquivo ou cuja área você não conhec
 
 ### 2. Quebrar features em sub-PRs sequenciais
 
-Toda feature que toca schema + UI + métrica deve virar 3 commits:
+Toda feature que toca schema + UI + métrica deve virar 3 commits sequenciais **direto em `main`** (trunk-based — ver seção Git):
 
-- **PR-A — Schema**: migration SQL idempotente em `PRD/m<N>_<feature>.sql` + aplicar no Supabase + validar.
-- **PR-B — UI**: módulo CRUD em `src/<feature>.py` + `render_<feature>()` em `app.py` + nova aba + i18n nos 3 locales + validação manual via Streamlit local.
-- **PR-C — Métrica/integração**: função em `metrics.py` + integração no Dashboard ou outra aba + i18n + validação end-to-end.
+- **C-A — Schema**: migration SQL idempotente em `PRD/m<N>_<feature>.sql` + aplicar no Supabase + validar.
+- **C-B — UI**: módulo CRUD em `src/<feature>.py` + `render_<feature>()` em `app.py` + nova aba + i18n nos 3 locales + validação manual via Streamlit local.
+- **C-C — Métrica/integração**: função em `metrics.py` + integração no Dashboard ou outra aba + i18n + validação end-to-end.
 
-Cada PR é vali­dável isolado. Use branch dedicada (`fusao/m<N>-<feature>`, `saas/m<N>-<feature>`, `feat/<area>`).
+Cada commit é validável isolado (a suíte fica verde a cada passo). Sem branch dedicada.
 
 ### 3. Validar antes de commitar
 
@@ -238,8 +238,7 @@ Trigger Postgres `risk_guard_eval` em `live_snapshots` (criado por `PRD/m10_risk
 
 - **NUNCA** commitar `Env/`, `.streamlit/secrets.toml`, `CSV input/*.csv`, `__pycache__/`, `.venv/`, ou qualquer pasta com nome `Env` em qualquer caixa (regra global).
 - Commits em pt-BR seguindo Conventional Commits: `feat(escopo):`, `fix(escopo):`, `refactor:`, `chore:`, `docs:`. Co-author Claude no rodapé.
-- Branches: `saas/m<N>-<nome>` para milestones SaaS, `fusao/m<N>-<nome>` para fases da fusão com Trade_Agent, `feat/<area>` para features avulsas.
-- Mergear via `--no-ff` para preservar ponto de integração (padrão herdado dos merges M1-M4).
+- **Trunk-based: commitar direto em `main`** (decisão 2026-05-30, dev único). Não criar feature branches (`saas/m<N>`, `fusao/m<N>`, `feat/`) nem merge `--no-ff`. Cada mudança é 1+ commit atômico direto em `main`, push em `origin/main`. O pre-push hook (`git config core.hooksPath .githooks`, 1x por worktree) roda `pytest tests/` como gate.
 - Skipping hooks (`--no-verify`) ou forçar push em `main` é proibido sem instrução explícita do usuário.
 
 ---
