@@ -1697,9 +1697,13 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
         comp_display.iloc[0, comp_display.columns.get_loc("selected")] = True
         st.caption(t("riskplanner.compare.recommended",
                      name=str(comp_display.iloc[0]["contract_name"])))
+    # Altura fixa que comporta todas as linhas (catalogo e' pequeno, ~12) para
+    # nao aparecer barra de rolagem vertical sobre a ultima coluna. Cap em 25
+    # linhas se o catalogo crescer. ~35px/linha + cabecalho.
+    _editor_h = min(len(comp_display) + 1, 26) * 35 + 3
     edited = st.data_editor(
         comp_display,
-        width="stretch", hide_index=True,
+        width="stretch", hide_index=True, height=_editor_h,
         column_order=[
             "selected", "contract_name", "point_value_usd", "max_contracts",
             "max_stop_points", "risk_usd", "n_trades_to_dll",
@@ -1718,7 +1722,7 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
             "risk_usd": st.column_config.NumberColumn(
                 t("riskplanner.col.risk_usd"), format="$%.2f", disabled=True),
             "n_trades_to_dll": st.column_config.NumberColumn(
-                t("riskplanner.col.n_trades"), disabled=True),
+                t("riskplanner.col.n_trades"), width="medium", disabled=True),
             "is_micro": None, "p_blowout": None,
         },
         key=f"_rp_compare_editor_{sel_date.isoformat()}",
