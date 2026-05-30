@@ -88,7 +88,9 @@ def upsert_plan(payload: dict) -> dict:
         uid = auth.current_user_id()
         if not uid:
             return {"ok": False, "id": None, "error": "no_user"}
-        row = {"user_id": uid, **payload}
+        # user_id por último: o uid do servidor sempre vence, mesmo que um
+        # caller passe user_id no payload (defesa em profundidade da RLS).
+        row = {**payload, "user_id": uid}
         r = client.table(TABLE).upsert(row, on_conflict="user_id,plan_date").execute()
         rid = r.data[0]["id"] if r.data else None
         return {"ok": True, "id": rid, "error": None}
@@ -123,8 +125,10 @@ def save_assets(risk_plan_id: int, rows: list[dict]) -> dict:
             return {"ok": False, "error": "no_user"}
         client.table(ASSETS_TABLE).delete().eq("risk_plan_id", risk_plan_id).execute()
         if rows:
+            # Chaves injetadas por último: row do caller nunca sobrescreve
+            # risk_plan_id/user_id (defesa em profundidade da RLS).
             payload = [
-                {"risk_plan_id": risk_plan_id, "user_id": uid, **row} for row in rows
+                {**row, "risk_plan_id": risk_plan_id, "user_id": uid} for row in rows
             ]
             client.table(ASSETS_TABLE).insert(payload).execute()
         return {"ok": True, "error": None}
