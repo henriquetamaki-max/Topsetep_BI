@@ -90,6 +90,36 @@ class TimezoneHelpersTests(unittest.TestCase):
         self.assertEqual(s, "20/05 10:32 ET")
         self.assertNotIn("/", s.split("ET")[1] if "ET" in s else "")
 
+    def test_fmt_dual_series_matches_per_row(self):
+        # Vetorizado deve casar linha-a-linha com fmt_dual em tz != primario.
+        _set_user_tz("America/Sao_Paulo")
+        ts = pd.Series(pd.to_datetime([
+            "2026-05-20 14:32:00", "2026-01-10 19:05:00",
+        ], utc=True))
+        out = timezones.fmt_dual_series(ts)
+        expected = [timezones.fmt_dual(t) for t in ts]
+        self.assertEqual(list(out), expected)
+
+    def test_fmt_dual_series_collapses_when_same_tz(self):
+        _set_user_tz("America/New_York")
+        ts = pd.Series(pd.to_datetime(["2026-05-20 14:32:00"], utc=True))
+        out = timezones.fmt_dual_series(ts)
+        self.assertEqual(list(out), ["20/05 10:32 ET"])
+
+    def test_fmt_dual_series_nat_to_empty(self):
+        _set_user_tz("America/Sao_Paulo")
+        ts = pd.Series(pd.to_datetime(["2026-05-20 14:32:00", None], utc=True))
+        out = timezones.fmt_dual_series(ts)
+        self.assertEqual(out.iloc[0], "20/05 10:32 ET / 20/05 11:32 BRT")
+        self.assertEqual(out.iloc[1], "")
+
+    def test_fmt_dual_series_localizes_naive(self):
+        # Série naive deve assumir UTC, como fmt_dual.
+        _set_user_tz("America/Sao_Paulo")
+        ts = pd.Series(pd.to_datetime(["2026-05-20 14:32:00"]))
+        out = timezones.fmt_dual_series(ts)
+        self.assertEqual(out.iloc[0], "20/05 10:32 ET / 20/05 11:32 BRT")
+
     def test_to_primary_localizes_naive(self):
         _set_user_tz("America/Sao_Paulo")
         # timestamp naive — funcao deve assumir UTC

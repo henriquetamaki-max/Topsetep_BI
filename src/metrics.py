@@ -339,19 +339,20 @@ def compute_risk_review(
     op_rows: list[dict] = []  # operações que furaram stop
     day_rows: list[dict] = []
 
-    # Drawdown acumulado precisa de ordem temporal.
-    days_sorted = sorted(g["trade_day"].unique())
+    # Drawdown acumulado precisa de ordem temporal. groupby(sort=True) parte g
+    # uma única vez em O(linhas) — antes era um mask `g[g.trade_day==d]` por dia
+    # (O(dias×linhas)). Os loops internos usam zip de colunas em vez de iterrows.
     cum_pnl = 0.0
     peak = 0.0
-    for d in days_sorted:
-        gd = g[g["trade_day"] == d]
-        realized = float(pd.to_numeric(gd["total_net_pnl"], errors="coerce").fillna(0).sum())
+    for d, gd in g.groupby("trade_day", sort=True):
+        net = pd.to_numeric(gd["total_net_pnl"], errors="coerce").fillna(0)
+        realized = float(net.sum())
         cum_pnl += realized
         peak = max(peak, cum_pnl)
         drawdown = peak - cum_pnl
         n_ops = int(len(gd))
 
-        losers = gd[pd.to_numeric(gd["total_net_pnl"], errors="coerce") < 0]
+        losers = gd[net < 0]
 
         rp = rp_by_date.get(d)
         has_rp = rp is not None
@@ -366,21 +367,28 @@ def compute_risk_review(
 
         # max_size: alguma operação acima do tamanho planejado (contrato+direção).
         size_viol = False
-        for _, op in gd.iterrows():
-            mp = plan_idx.get((d, str(op.get("contract_name")), str(op.get("type"))))
+        for c, ty, sz in zip(
+            gd["contract_name"].astype(str), gd["type"].astype(str), gd["total_size"]
+        ):
+            mp = plan_idx.get((d, c, ty))
             if not mp or mp[0] is None:
                 continue
             try:
-                if _to_int(op.get("total_size")) > int(mp[0]):
+                if _to_int(sz) > int(mp[0]):
                     size_viol = True
+                    break
             except (TypeError, ValueError):
                 continue
 
         # stop: por operação perdedora (precisa de plano daily + point_value).
         n_stop = 0
-        for _, op in losers.iterrows():
-            mp = plan_idx.get((d, str(op.get("contract_name")), str(op.get("type"))))
-            pv = point_values.get(str(op.get("contract_name")))
+        for c, ty, loss_pnl in zip(
+            losers["contract_name"].astype(str),
+            losers["type"].astype(str),
+            losers["total_net_pnl"],
+        ):
+            mp = plan_idx.get((d, c, ty))
+            pv = point_values.get(c)
             if not mp or pv is None or mp[1] is None:
                 continue
             max_size, stop_points = mp
@@ -390,13 +398,13 @@ def compute_risk_review(
                 continue
             if planned_max_loss <= 0:
                 continue
-            realized_loss = abs(float(op["total_net_pnl"]))
+            realized_loss = abs(float(loss_pnl))
             if realized_loss > planned_max_loss:
                 n_stop += 1
                 op_rows.append({
                     "trade_day": d,
-                    "contract_name": str(op.get("contract_name")),
-                    "direction": str(op.get("type")),
+                    "contract_name": c,
+                    "direction": ty,
                     "realized_loss": round(realized_loss, 2),
                     "planned_risk": round(planned_max_loss, 2),
                     "excess": round(realized_loss - planned_max_loss, 2),

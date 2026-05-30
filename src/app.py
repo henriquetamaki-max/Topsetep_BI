@@ -834,8 +834,8 @@ def render_dashboard(
     # --- Tabela de trades ---------------------------------------------------
     st.subheader(t("dash.trades_title", n=len(df)))
     trades_view = df_with_groups.sort_values("entered_at", ascending=False).copy()
-    trades_view["entered_at_dual"] = trades_view["entered_at"].apply(
-        lambda ts: timezones.fmt_dual(pd.to_datetime(ts))
+    trades_view["entered_at_dual"] = timezones.fmt_dual_series(
+        trades_view["entered_at"]
     )
     show = trades_view[
         [
@@ -865,13 +865,28 @@ def render_dashboard(
     st.dataframe(show, width="stretch", hide_index=True, height=380)
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _compute_coach_cached(
+    df: pd.DataFrame, groups: pd.DataFrame, tz_label: str, user_id: str
+) -> dict:
+    """Memoiza `compute_coach` por (dados filtrados, fuso, usuário).
+
+    `compute_coach` refaz grouping + análise comportamental pesados a cada
+    rerun; aqui só recomputa quando o df filtrado, o fuso ou o usuário mudam.
+    `user_id` na chave isola tenants (convenção CLAUDE.md — chave de cache
+    inclui user_id)."""
+    return metrics.compute_coach(df, groups, tz_label=tz_label)
+
+
 def render_coach(
     df: pd.DataFrame,
     groups: pd.DataFrame,
     df_all: pd.DataFrame,
     filter_ctx: coach_ai.FilterContext,
 ) -> None:
-    coach = metrics.compute_coach(df, groups, tz_label=timezones.user_tz_short())
+    coach = _compute_coach_cached(
+        df, groups, timezones.user_tz_short(), auth.current_user_id()
+    )
 
     # --- Gerador de prompt para análise em LLM externa -------------------------
     ai_col1, ai_col2 = st.columns([1, 3])

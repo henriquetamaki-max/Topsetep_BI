@@ -113,6 +113,24 @@ def fmt_dual(ts: pd.Timestamp, fmt: str = "%d/%m %H:%M") -> str:
     return f"{p} {PRIMARY_TZ_SHORT} / {u} {user_tz_short()}"
 
 
+def fmt_dual_series(ts: pd.Series, fmt: str = "%d/%m %H:%M") -> pd.Series:
+    """Versão vetorizada de `fmt_dual` para uma coluna inteira.
+
+    Resolve `user_tz()` e as conversões de fuso **uma única vez** (em vez de
+    por linha via `.apply(fmt_dual)`), usando `.dt.strftime`. NaT → "".
+    Equivalente linha-a-linha a `ts.apply(fmt_dual)`, exceto que NaT vira ""
+    (string vazia) em vez de "NaT ...".
+    """
+    ts = pd.to_datetime(ts, utc=True)
+    p = to_primary(ts).dt.strftime(fmt)
+    if user_tz() == PRIMARY_TZ:
+        out = p + f" {PRIMARY_TZ_SHORT}"
+    else:
+        u = to_user(ts).dt.strftime(fmt)
+        out = p + f" {PRIMARY_TZ_SHORT} / " + u + f" {user_tz_short()}"
+    return out.where(ts.notna(), "")
+
+
 def trade_day_primary(ts: pd.Series) -> pd.Series:
     """Deriva o trade_day em fuso primário (ET) a partir de entered_at.
 
