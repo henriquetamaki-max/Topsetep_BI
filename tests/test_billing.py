@@ -244,5 +244,27 @@ class EnsureSubscriptionTests(unittest.TestCase):
         billing.ensure_subscription(client)
 
 
+# ---------------------------------------------------------------------------
+# Isolamento de cache multi-tenant (regressao do audit 2026-05-30)
+# ---------------------------------------------------------------------------
+
+
+class FetchPlanCacheKeyTests(unittest.TestCase):
+    """_fetch_plan e cacheado por user_id. O arg NAO pode ter prefixo '_':
+    o Streamlit ignora args '_'-prefixados no hash do @st.cache_data, e dois
+    traders no mesmo processo passariam a compartilhar o plano cacheado por
+    todo o TTL (vazamento de assinatura + bypass de feature-gate)."""
+
+    def test_fetch_plan_user_id_arg_is_not_underscore_prefixed(self):
+        import inspect
+
+        params = list(inspect.signature(billing._fetch_plan).parameters)
+        self.assertEqual(params, ["user_id"])
+        self.assertFalse(
+            params[0].startswith("_"),
+            "param '_'-prefixado quebra o isolamento de cache entre tenants",
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

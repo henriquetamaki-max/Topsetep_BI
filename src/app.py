@@ -358,32 +358,42 @@ def render_dashboard(
     eq = df_with_groups.sort_values("entered_at").copy()
     eq["cum_pnl"] = eq["pnl_net"].cumsum()
     eq["cum_pts"] = eq["points"].cumsum()
+    # Eixo X em fuso primário (ET), tz-naive para o Plotly exibir o wall-clock
+    # correto. `entered_at` cru é UTC e desalinharia das horas vistas na tabela.
+    eq["entered_at_plot"] = timezones.to_primary(eq["entered_at"]).dt.tz_localize(None)
+    tz_lbl = timezones.PRIMARY_TZ_SHORT
 
     col_eq1, col_eq2 = st.columns(2)
     with col_eq1:
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
-                x=eq["entered_at"], y=eq["cum_pnl"], mode="lines",
+                x=eq["entered_at_plot"], y=eq["cum_pnl"], mode="lines",
                 line=dict(color=GREEN, width=2),
                 fill="tozeroy", fillcolor="rgba(34,255,136,0.12)",
                 hovertemplate="<b>%{x}</b><br>PnL acum: $%{y:,.2f}<extra></extra>",
             )
         )
-        fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.cum_pnl_usd"))
+        fig.update_layout(
+            **PLOTLY_LAYOUT, height=300,
+            title=f"{t('dash.cum_pnl_usd')} ({tz_lbl})",
+        )
         st.plotly_chart(fig, width="stretch")
 
     with col_eq2:
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
-                x=eq["entered_at"], y=eq["cum_pts"], mode="lines",
+                x=eq["entered_at_plot"], y=eq["cum_pts"], mode="lines",
                 line=dict(color=BLUE, width=2),
                 fill="tozeroy", fillcolor="rgba(101,181,255,0.12)",
                 hovertemplate="<b>%{x}</b><br>Pontos acum: %{y:,.2f}<extra></extra>",
             )
         )
-        fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.cum_points"))
+        fig.update_layout(
+            **PLOTLY_LAYOUT, height=300,
+            title=f"{t('dash.cum_points')} ({tz_lbl})",
+        )
         st.plotly_chart(fig, width="stretch")
 
     # --- Daily charts (TopStepX style) --------------------------------------
@@ -858,7 +868,7 @@ def render_coach(
     df_all: pd.DataFrame,
     filter_ctx: coach_ai.FilterContext,
 ) -> None:
-    coach = metrics.compute_coach(df, groups)
+    coach = metrics.compute_coach(df, groups, tz_label=timezones.user_tz_short())
 
     # --- Gerador de prompt para análise em LLM externa -------------------------
     ai_col1, ai_col2 = st.columns([1, 3])
@@ -1134,19 +1144,23 @@ def render_coach(
 # ----------------------------- Plano de Ação ---------------------------------
 
 
+# `user_id` (sem prefixo `_`) entra na chave de cache para isolar tenants no
+# mesmo processo Streamlit — list_items/list_plans filtram por auth.uid() via
+# RLS, mas sem o user_id na chave dois traders compartilhariam a entrada pelo
+# TTL. Ver gotcha 2026-05-23 (cache + `_`-prefix) em MEMORIA.md.
 @st.cache_data(ttl=30)
-def _load_action_items() -> pd.DataFrame:
+def _load_action_items(user_id: str) -> pd.DataFrame:
     return action_plan.list_items()
 
 
 @st.cache_data(ttl=30)
-def _load_day_plans(plan_date_iso: str) -> pd.DataFrame:
+def _load_day_plans(plan_date_iso: str, user_id: str) -> pd.DataFrame:
     plan_date = date.fromisoformat(plan_date_iso) if plan_date_iso else None
     return daily_plan.list_plans(plan_date=plan_date)
 
 
 @st.cache_data(ttl=30)
-def _load_all_plans() -> pd.DataFrame:
+def _load_all_plans(user_id: str) -> pd.DataFrame:
     """Devolve todos os planos do usuário autenticado (cache compartilhado
     com o Dashboard para calcular aderência ao plano)."""
     return daily_plan.list_plans(plan_date=None)
@@ -1207,7 +1221,7 @@ def render_day_plan() -> None:
     st.session_state["_day_plan_date"] = selected_date
 
     try:
-        original = _load_day_plans(selected_date.isoformat())
+        original = _load_day_plans(selected_date.isoformat(), auth.current_user_id())
     except Exception as e:
         msg = str(e)
         if "daily_plans" in msg or "does not exist" in msg.lower():
@@ -1402,7 +1416,7 @@ def render_action_plan() -> None:
     st.caption(t("plan.caption"))
 
     try:
-        original = _load_action_items()
+        original = _load_action_items(auth.current_user_id())
     except Exception as e:
         msg = str(e)
         if "action_items" in msg or "does not exist" in msg.lower():
@@ -1773,7 +1787,7 @@ segments = metrics.compute_segments(groups)
 daily = metrics.compute_daily(df_with_groups)
 overview = metrics.compute_overview(df_with_groups)
 try:
-    plans_all = _load_all_plans()
+    plans_all = _load_all_plans(auth.current_user_id())
 except Exception:
     # Se a tabela daily_plans ainda não foi criada no Supabase, segue sem
     # quebrar o dashboard. O expander de aderência mostra estado vazio.

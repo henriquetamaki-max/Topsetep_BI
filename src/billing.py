@@ -43,12 +43,15 @@ def ensure_subscription(client) -> None:
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def _fetch_plan(_user_id: str) -> dict[str, Any] | None:
+def _fetch_plan(user_id: str) -> dict[str, Any] | None:
     """Chama a RPC current_user_plan() e retorna o primeiro registro.
 
-    `_user_id` é só chave de cache — a RPC usa `auth.uid()` do JWT. O
-    prefixo `_` evita que Streamlit tente hashear (não há nada a hashear,
-    é só string).
+    `user_id` (string, hasheável) entra na chave de cache para isolar
+    tenants no mesmo processo Streamlit. NÃO usar prefixo `_`: ele faz o
+    Streamlit ignorar o arg no hash, e dois traders passam a compartilhar
+    a entrada por todo o TTL — vazamento de plano/assinatura e bypass de
+    feature-gate (gotcha 2026-05-23 em MEMORIA.md). A RPC continua usando
+    `auth.uid()` do JWT; o arg é só chave de cache.
     """
     # Import tardio para não criar ciclo com app.py.
     import auth  # noqa: PLC0415
