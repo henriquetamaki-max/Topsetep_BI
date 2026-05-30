@@ -2092,6 +2092,82 @@ def render_risk_review(user: dict, plan: dict | None, groups, plans) -> None:
             },
         )
 
+    # ----- Dashboard de cumprimento do plano (M16) ----------------------------
+    st.markdown(f"#### {t('riskreview.dash.title')}")
+    ts = metrics.compute_adherence_timeseries(by_day)
+    daily_ts = ts["daily"]
+    planned_ts = daily_ts[daily_ts["has_plan"]] if not daily_ts.empty else daily_ts
+    if planned_ts.empty:
+        st.info(t("riskreview.dash.none"))
+    else:
+        streak = ts["streak"]
+
+        def _fmt_bd(bd) -> str:
+            return "—" if not bd else f"{bd[0].strftime('%d/%m')} ({bd[1]:.0f})"
+
+        s1, s2, s3 = st.columns(3)
+        s1.metric(t("riskreview.dash.streak"), streak["current_clean"])
+        s2.metric(t("riskreview.dash.best"), _fmt_bd(streak["best_day"]))
+        s3.metric(t("riskreview.dash.worst"), _fmt_bd(streak["worst_day"]))
+
+        wk, mo = ts["weekly"], ts["monthly"]
+        cwk, cmo = st.columns(2)
+        if not wk.empty:
+            fw = go.Figure(go.Bar(x=wk["period"], y=wk["score"], marker_color="#5b9bd5"))
+            fw.update_layout(
+                template="plotly_dark", title=t("riskreview.dash.weekly"), height=240,
+                margin=dict(t=36, b=20, l=20, r=10), yaxis=dict(range=[0, 100]),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+            cwk.plotly_chart(fw, width="stretch")
+        if not mo.empty:
+            fm = go.Figure(go.Bar(x=mo["period"], y=mo["score"], marker_color="#7fc7a4"))
+            fm.update_layout(
+                template="plotly_dark", title=t("riskreview.dash.monthly"), height=240,
+                margin=dict(t=36, b=20, l=20, r=10), yaxis=dict(range=[0, 100]),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+            cmo.plotly_chart(fm, width="stretch")
+
+        # Heatmap-calendário: semana (linha) × dia da semana (coluna).
+        d2 = daily_ts.copy()
+        d2["dt"] = pd.to_datetime(d2["trade_day"])
+        _iso = d2["dt"].dt.isocalendar()
+        d2["yw"] = (_iso["year"].astype(str) + "-W"
+                    + _iso["week"].astype(int).astype(str).str.zfill(2))
+        d2["dow"] = d2["dt"].dt.weekday
+        d2["z"] = d2["status"].map(
+            lambda s: 1.0 if s == "clean" else (-1.0 if s == "viol" else None))
+        piv = d2.pivot_table(index="yw", columns="dow", values="z",
+                             aggfunc="first").reindex(columns=range(7))
+        _dow_lbl = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        fh = go.Figure(go.Heatmap(
+            z=piv.values, x=_dow_lbl, y=list(piv.index),
+            colorscale=[[0, "#e08585"], [0.5, "#2a2f3a"], [1, "#7fc7a4"]],
+            zmin=-1, zmax=1, showscale=False, xgap=3, ygap=3))
+        fh.update_layout(
+            template="plotly_dark", title=t("riskreview.dash.calendar"),
+            height=max(160, 30 * len(piv) + 90), margin=dict(t=36, b=20, l=20, r=10),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+        st.plotly_chart(fh, width="stretch")
+
+        # Tendência de violações por tipo (barras empilhadas por semana).
+        if not wk.empty:
+            _vt = [
+                ("max_loss", "#e08585", t("riskreview.col.maxloss")),
+                ("stop", "#e0a585", t("riskreview.col.stop")),
+                ("blowout", "#c45b5b", t("riskreview.kpi.blowout")),
+                ("max_trades", "#9aa0a6", t("riskreview.col.maxtrades")),
+                ("max_size", "#6a86b8", t("riskreview.col.maxsize")),
+            ]
+            fv = go.Figure()
+            for key, color, name in _vt:
+                fv.add_trace(go.Bar(x=wk["period"], y=wk[key], name=name, marker_color=color))
+            fv.update_layout(
+                barmode="stack", template="plotly_dark",
+                title=t("riskreview.dash.violations"), height=260,
+                margin=dict(t=36, b=20, l=20, r=10),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fv, width="stretch")
+
     # Persistir snapshot + evolução do score ao longo dos períodos salvos.
     st.divider()
     cs, _ = st.columns([1, 3])

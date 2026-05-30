@@ -602,5 +602,14 @@
   "riskreview.comment.label": "Day comment (your self-review)",
   "riskreview.comment.save": "Save comment",
   "riskreview.comment.ok": "Comment saved.",
-  "riskreview.comment.err": "Could not save: {err}"
+  "riskreview.comment.err": "Could not save: {err}",
+  "riskreview.dash.title": "Plan adherence",
+  "riskreview.dash.none": "No planned days in the period yet.",
+  "riskreview.dash.streak": "Clean streak (days)",
+  "riskreview.dash.best": "Best day",
+  "riskreview.dash.worst": "Worst day",
+  "riskreview.dash.weekly": "Weekly score",
+  "riskreview.dash.monthly": "Monthly score",
+  "riskreview.dash.calendar": "Daily calendar (green=clean · red=violation)",
+  "riskreview.dash.violations": "Violations by type (weekly)"
 }

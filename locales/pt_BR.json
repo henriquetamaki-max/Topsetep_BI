@@ -602,5 +602,14 @@
   "riskreview.comment.label": "Comentário do dia (sua autoavaliação)",
   "riskreview.comment.save": "Salvar comentário",
   "riskreview.comment.ok": "Comentário salvo.",
-  "riskreview.comment.err": "Não foi possível salvar: {err}"
+  "riskreview.comment.err": "Não foi possível salvar: {err}",
+  "riskreview.dash.title": "Cumprimento do plano",
+  "riskreview.dash.none": "Ainda não há dias com plano no período.",
+  "riskreview.dash.streak": "Sequência limpa (dias)",
+  "riskreview.dash.best": "Melhor dia",
+  "riskreview.dash.worst": "Pior dia",
+  "riskreview.dash.weekly": "Score semanal",
+  "riskreview.dash.monthly": "Score mensal",
+  "riskreview.dash.calendar": "Calendário diário (verde=dentro · vermelho=violação)",
+  "riskreview.dash.violations": "Violações por tipo (semanal)"
 }
