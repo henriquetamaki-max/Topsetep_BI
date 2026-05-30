@@ -157,10 +157,19 @@ def save_review(period_start: date, period_end: date, review: dict) -> dict:
             "total_days": int(review.get("total_days", 0)),
             "clean_days": int(review.get("clean_days", 0)),
             "score_pct": round(float(review.get("score_pct", 0.0)), 2),
-            "stop_furado": int(review.get("stop_furado", 0)),
-            "risco_excedido": int(review.get("risco_excedido", 0)),
-            "dll_furado": int(review.get("dll_furado", 0)),
+            # compute_risk_review devolve as dimensões como stop/max_loss/
+            # max_size/max_trades; o schema usa nomes legados. Mapeia:
+            # stop_furado<-stop, dll_furado<-max_loss, risco_excedido<-max_size.
+            # Antes liam keys inexistentes (stop_furado/...) → gravavam 0 sempre.
+            "stop_furado": int(review.get("stop", 0)),
+            "dll_furado": int(review.get("max_loss", 0)),
+            "risco_excedido": int(review.get("max_size", 0)),
             "blowout": int(review.get("blowout", 0)),
+            # snapshot preserva todas as 5 dimensões (max_trades não tem coluna).
+            "snapshot": {
+                k: int(review.get(k, 0))
+                for k in ("max_trades", "max_loss", "max_size", "stop", "blowout")
+            },
         }
         (
             client.table(REVIEWS_TABLE)

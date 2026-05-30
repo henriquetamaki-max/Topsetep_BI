@@ -1773,14 +1773,16 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
         }
         res = risk_plan.upsert_plan(header)
         if res["ok"] and res["id"]:
+            # Uma linha por (contrato, direção) escolhida em push_dir — antes
+            # gravava sempre "Long", ignorando a seleção do trader.
             asset_rows = [{
-                "contract_name": r["contract_name"], "direction": "Long",
-                "max_contracts": int(r["max_contracts"]),
+                "contract_name": r["contract_name"], "direction": direction,
+                "max_contracts": int(r["max_contracts"]) if pd.notna(r["max_contracts"]) else 0,
                 "risk_usd": float(r["risk_usd"]) if pd.notna(r["risk_usd"]) else None,
                 "max_stop_points": float(r["max_stop_points"]) if pd.notna(r["max_stop_points"]) else None,
                 "n_trades_to_dll": int(r["n_trades_to_dll"]) if pd.notna(r["n_trades_to_dll"]) else None,
                 "selected": bool(r["selected"]),
-            } for _, r in edited.iterrows()]
+            } for _, r in edited.iterrows() for direction in _dir_map[push_dir]]
             risk_plan.save_assets(res["id"], asset_rows)
             st.success(t("riskplanner.save_ok"))
         else:

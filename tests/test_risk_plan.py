@@ -171,19 +171,30 @@ class UpsertPlanTests(unittest.TestCase):
 
 
 class SaveReviewTests(unittest.TestCase):
-    def test_injects_user_id_and_conflict(self):
+    def test_maps_compute_keys_to_schema_columns(self):
+        # Regressão: compute_risk_review devolve stop/max_loss/max_size/
+        # max_trades/blowout; o schema usa stop_furado/dll_furado/risco_excedido.
+        # Antes save_review lia keys inexistentes (stop_furado/...) e gravava 0.
         client = MagicMock()
         with patch.object(risk_plan.auth, "get_client", return_value=client), \
              patch.object(risk_plan.auth, "current_user_id", return_value="u-9"):
             out = risk_plan.save_review(date(2026, 5, 1), date(2026, 5, 30), {
                 "total_days": 10, "clean_days": 7, "score_pct": 70.0,
-                "stop_furado": 2, "risco_excedido": 1, "dll_furado": 0, "blowout": 0,
+                "stop": 2, "max_loss": 3, "max_size": 1, "max_trades": 4, "blowout": 1,
             })
         self.assertTrue(out["ok"])
         args, kwargs = client.table.return_value.upsert.call_args
-        self.assertEqual(args[0]["user_id"], "u-9")
-        self.assertEqual(args[0]["score_pct"], 70.0)
-        self.assertEqual(args[0]["period_end"], "2026-05-30")
+        row = args[0]
+        self.assertEqual(row["user_id"], "u-9")
+        self.assertEqual(row["score_pct"], 70.0)
+        self.assertEqual(row["period_end"], "2026-05-30")
+        # mapeamento correto das dimensões:
+        self.assertEqual(row["stop_furado"], 2)
+        self.assertEqual(row["dll_furado"], 3)
+        self.assertEqual(row["risco_excedido"], 1)
+        self.assertEqual(row["blowout"], 1)
+        # max_trades não tem coluna → preservado no snapshot jsonb:
+        self.assertEqual(row["snapshot"]["max_trades"], 4)
         self.assertEqual(kwargs.get("on_conflict"), "user_id,period_start,period_end")
 
     def test_no_user(self):
