@@ -1,0 +1,28 @@
+#!/usr/bin/env sh
+# .githooks/pre-push — bloqueia push se a suíte rápida (<2min) falha.
+#
+# Instalar uma vez por clone (não é automático):
+#   git config core.hooksPath .githooks
+#
+# Forçar push apesar de falha (NÃO recomendado): git push --no-verify
+
+echo "[pre-push] rodando pytest tests/ ..."
+
+# Prefere o python do venv (Windows/Unix); cai pro python do PATH.
+if [ -x ".venv/Scripts/python.exe" ]; then
+  PY=".venv/Scripts/python.exe"
+elif [ -x ".venv/bin/python" ]; then
+  PY=".venv/bin/python"
+else
+  PY="python"
+fi
+
+"$PY" -m pytest tests/ -q || {
+  echo ""
+  echo "[pre-push] FALHA — testes quebraram. Push abortado."
+  echo "[pre-push] Investigar: $PY -m pytest tests/ -q"
+  echo "[pre-push] Forçar (não recomendado): git push --no-verify"
+  exit 1
+}
+
+echo "[pre-push] OK — push liberado."
