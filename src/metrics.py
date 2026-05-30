@@ -261,6 +261,10 @@ def _empty_adherence() -> dict:
 # "ok"/"viol"/None (None = sem referência no plano daquele dia → "—" na UI).
 RISK_REVIEW_DIMS = ("max_trades", "max_loss", "max_size", "stop")
 
+# Pesos por severidade (M16): blowout/DLL pesam mais que tamanho/nº de trades.
+# Score do dia = max(0, 100 − Σ pesos das dimensões violadas).
+RISK_WEIGHTS = {"blowout": 40, "max_loss": 30, "stop": 15, "max_trades": 10, "max_size": 10}
+
 
 def _as_date(v):
     """Normaliza date/str/Timestamp para datetime.date. None se não der."""
@@ -469,6 +473,273 @@ def _empty_risk_review() -> dict:
         "by_day": pd.DataFrame(),
         "op_violations": pd.DataFrame(),
     }
+
+
+def _risk_usd_from_plan(rp: dict, balance: float) -> float | None:
+    """Risco $/trade alvo do header risk_plans (pct do saldo OU valor fixo).
+    Espelha risk_engine.risk_dollars_per_trade."""
+    val = rp.get("risk_value")
+    if val is None:
+        return None
+    try:
+        val = float(val)
+    except (TypeError, ValueError):
+        return None
+    mode = rp.get("risk_mode")
+    if mode == "pct":
+        return balance * val / 100.0 if balance else None
+    if mode == "usd":
+        return val
+    return None
+
+
+def _detail_dim(key: str, planned, realized, status) -> dict:
+    """Linha do comparativo: planejado, realizado, delta e razão (realizado/
+    planejado). delta/pct só quando ambos são numéricos e planejado != 0."""
+    num = lambda v: v if isinstance(v, (int, float)) else None  # noqa: E731
+    p, r = num(planned), num(realized)
+    delta = (r - p) if (p is not None and r is not None) else None
+    pct = (r / p) if (p not in (None, 0) and r is not None) else None
+    return {
+        "key": key, "planned": planned, "realized": realized,
+        "delta": round(delta, 2) if delta is not None else None,
+        "pct": round(pct, 4) if pct is not None else None,
+        "status": status,
+    }
+
+
+def compute_day_detail(
+    groups: pd.DataFrame,
+    plans: pd.DataFrame,
+    risk_plans: pd.DataFrame,
+    point_values: dict | None = None,
+    day=None,
+) -> dict:
+    """Detalhe comparativo plano×realizado de UM dia (fuso ET), por dimensão:
+    max_trades, max_loss (DLL), max_size, stop, risco/trade. Cada linha traz
+    `planned`, `realized`, `delta`, `pct` (realizado/planejado) e `status`
+    (ok/viol/None). `None` em planned/status = sem referência no plano do dia.
+
+    (blowout é métrica de período → fica no dashboard, não no detalhe diário.)
+
+    Devolve `{day, has_plan, dimensions[], context{}}`. context tem contratos,
+    nº ops/vencedoras/perdedoras, PnL líquido, melhor/pior operação.
+    """
+    point_values = point_values or {}
+    d = _as_date(day)
+    empty = {"day": d, "has_plan": False, "dimensions": [], "context": {}}
+    if groups is None or groups.empty or d is None:
+        return empty
+
+    g = groups.copy()
+    g["trade_day"] = (
+        pd.to_datetime(g["group_start"]).dt.tz_convert("America/New_York").dt.date
+    )
+    gd = g[g["trade_day"] == d]
+    if gd.empty:
+        return empty
+
+    net_vals = pd.to_numeric(gd["total_net_pnl"], errors="coerce").fillna(0)
+    n_ops = int(len(gd))
+    net = float(net_vals.sum())
+    losers = gd[net_vals < 0]
+    winners = gd[net_vals > 0]
+    loss_abs = pd.to_numeric(losers["total_net_pnl"], errors="coerce").abs()
+    n_losers = int(len(losers))
+    day_loss = -net if net < 0 else 0.0
+    max_op_size = int(pd.to_numeric(gd["total_size"], errors="coerce").fillna(0).max())
+    avg_loss = float(loss_abs.mean()) if n_losers else 0.0
+
+    # Referências do plano do dia.
+    plan_idx: dict[tuple, tuple] = {}
+    if plans is not None and not plans.empty:
+        for _, p in plans.iterrows():
+            if _as_date(p.get("plan_date")) != d:
+                continue
+            plan_idx[(str(p.get("contract_name")), str(p.get("direction")))] = (
+                p.get("max_size"), p.get("stop_points"),
+            )
+    has_daily = bool(plan_idx)
+    rp = None
+    if risk_plans is not None and not risk_plans.empty:
+        for _, r in risk_plans.iterrows():
+            if _as_date(r.get("plan_date")) == d:
+                rp = r.to_dict()
+                break
+    has_rp = rp is not None
+
+    planned_trades = int(rp["trades_per_day"]) if has_rp and rp.get("trades_per_day") else None
+    planned_dll = float(rp["daily_loss_limit_usd"]) if has_rp and rp.get("daily_loss_limit_usd") else None
+    balance = float(rp.get("balance_usd") or 0.0) if has_rp else 0.0
+    planned_risk = _risk_usd_from_plan(rp, balance) if has_rp else None
+    planned_sizes = [mp[0] for mp in plan_idx.values() if mp[0] is not None]
+    planned_max_size = float(max(planned_sizes)) if planned_sizes else None
+
+    # Stop: pega a operação perdedora com maior excesso sobre o risco planejado.
+    planned_stop = realized_stop = None
+    n_stop = 0
+    worst_excess = None
+    for _, op in losers.iterrows():
+        mp = plan_idx.get((str(op.get("contract_name")), str(op.get("type"))))
+        pv = point_values.get(str(op.get("contract_name")))
+        if not mp or pv is None or mp[0] is None or mp[1] is None:
+            continue
+        try:
+            pml = float(mp[1]) * float(pv) * float(mp[0])
+        except (TypeError, ValueError):
+            continue
+        if pml <= 0:
+            continue
+        rl = abs(float(op["total_net_pnl"]))
+        if rl > pml:
+            n_stop += 1
+        excess = rl - pml
+        if worst_excess is None or excess > worst_excess:
+            worst_excess = excess
+            planned_stop, realized_stop = round(pml, 2), round(rl, 2)
+
+    # max_size viol: alguma operação acima do tamanho planejado do seu contrato.
+    size_viol = False
+    for _, op in gd.iterrows():
+        mp = plan_idx.get((str(op.get("contract_name")), str(op.get("type"))))
+        if mp and mp[0] is not None and _to_int(op.get("total_size")) > int(mp[0]):
+            size_viol = True
+
+    s_trades = None if planned_trades is None else ("viol" if n_ops > planned_trades else "ok")
+    s_loss = None if planned_dll is None else ("viol" if day_loss >= planned_dll else "ok")
+    s_size = None if not has_daily else ("viol" if size_viol else "ok")
+    s_stop = None if planned_stop is None else ("viol" if n_stop > 0 else "ok")
+    s_risk = None if planned_risk is None else ("viol" if (n_losers > 0 and avg_loss > planned_risk) else "ok")
+
+    dimensions = [
+        _detail_dim("max_trades", planned_trades, n_ops, s_trades),
+        _detail_dim("max_loss", planned_dll, round(day_loss, 2), s_loss),
+        _detail_dim("max_size", planned_max_size, max_op_size, s_size),
+        _detail_dim("stop", planned_stop, realized_stop, s_stop),
+        _detail_dim("risco_trade",
+                    round(planned_risk, 2) if planned_risk is not None else None,
+                    round(avg_loss, 2) if n_losers else 0.0, s_risk),
+    ]
+
+    context = {
+        "contracts": sorted({str(c) for c in gd["contract_name"]}),
+        "n_ops": n_ops,
+        "n_winners": int(len(winners)),
+        "n_losers": n_losers,
+        "net_pnl": round(net, 2),
+        "best_op": round(float(net_vals.max()), 2),
+        "worst_op": round(float(net_vals.min()), 2),
+    }
+    return {
+        "day": d,
+        "has_plan": bool(has_rp or has_daily),
+        "dimensions": dimensions,
+        "context": context,
+    }
+
+
+def _day_score(row) -> float:
+    """Score ponderado de um dia-com-plano: 100 − Σ pesos das violações."""
+    pen = 0
+    if row.get("dim_trades") == "viol":
+        pen += RISK_WEIGHTS["max_trades"]
+    if row.get("dim_loss") == "viol":
+        pen += RISK_WEIGHTS["max_loss"]
+    if row.get("dim_size") == "viol":
+        pen += RISK_WEIGHTS["max_size"]
+    if row.get("dim_stop") == "viol":
+        pen += RISK_WEIGHTS["stop"]
+    if bool(row.get("blowout")):
+        pen += RISK_WEIGHTS["blowout"]
+    return float(max(0, 100 - pen))
+
+
+def _iso_week(d) -> str:
+    dd = d if hasattr(d, "isocalendar") else pd.Timestamp(d).date()
+    y, w, _ = dd.isocalendar()
+    return f"{y}-W{int(w):02d}"
+
+
+def _year_month(d) -> str:
+    dd = d if hasattr(d, "year") else pd.Timestamp(d).date()
+    return f"{dd.year}-{dd.month:02d}"
+
+
+def compute_adherence_timeseries(by_day: pd.DataFrame) -> dict:
+    """Agrega o `by_day` de compute_risk_review em séries temporais de aderência
+    (score ponderado). Devolve:
+
+    - `daily`: por dia → score (None se sem plano), status (clean/viol/no_plan).
+    - `weekly` / `monthly`: score médio dos dias-com-plano + nº de dias +
+      contagem de violações por tipo (max_trades/max_loss/max_size/stop/blowout).
+    - `streak`: dias-com-plano limpos consecutivos a partir do fim (pula sem
+      plano) + melhor/pior dia por score.
+
+    Dias sem plano não entram no denominador das janelas.
+    """
+    empty_streak = {"current_clean": 0, "best_day": None, "worst_day": None}
+    if by_day is None or by_day.empty:
+        return {"weights": dict(RISK_WEIGHTS), "daily": pd.DataFrame(),
+                "weekly": pd.DataFrame(), "monthly": pd.DataFrame(),
+                "streak": empty_streak}
+
+    daily_rows = []
+    for _, r in by_day.iterrows():
+        if not r["has_plan"]:
+            daily_rows.append({"trade_day": r["trade_day"], "score": None,
+                               "status": "no_plan", "has_plan": False})
+        else:
+            daily_rows.append({"trade_day": r["trade_day"], "score": _day_score(r),
+                               "status": "clean" if r["clean"] else "viol",
+                               "has_plan": True})
+    daily = pd.DataFrame(daily_rows).sort_values("trade_day").reset_index(drop=True)
+
+    planned = by_day[by_day["has_plan"]].copy()
+
+    def _agg(period_fn) -> pd.DataFrame:
+        if planned.empty:
+            return pd.DataFrame()
+        tmp = planned.copy()
+        tmp["_score"] = tmp.apply(_day_score, axis=1)
+        tmp["period"] = tmp["trade_day"].map(period_fn)
+        rows = []
+        for period, sub in tmp.groupby("period"):
+            rows.append({
+                "period": period,
+                "score": round(float(sub["_score"].mean()), 2),
+                "n_days": int(len(sub)),
+                "max_trades": int((sub["dim_trades"] == "viol").sum()),
+                "max_loss": int((sub["dim_loss"] == "viol").sum()),
+                "max_size": int((sub["dim_size"] == "viol").sum()),
+                "stop": int((sub["dim_stop"] == "viol").sum()),
+                "blowout": int(sub["blowout"].sum()),
+            })
+        return pd.DataFrame(rows).sort_values("period").reset_index(drop=True)
+
+    weekly = _agg(_iso_week)
+    monthly = _agg(_year_month)
+
+    # Streak: dias-com-plano limpos consecutivos a partir do fim (pula sem plano).
+    current = 0
+    for _, r in daily.iloc[::-1].iterrows():
+        if not r["has_plan"]:
+            continue
+        if r["status"] == "clean":
+            current += 1
+        else:
+            break
+
+    best = worst = None
+    scored = daily[daily["has_plan"]]
+    if not scored.empty:
+        bi = scored.loc[scored["score"].idxmax()]
+        wi = scored.loc[scored["score"].idxmin()]
+        best = (bi["trade_day"], float(bi["score"]))
+        worst = (wi["trade_day"], float(wi["score"]))
+
+    return {"weights": dict(RISK_WEIGHTS), "daily": daily, "weekly": weekly,
+            "monthly": monthly,
+            "streak": {"current_clean": current, "best_day": best, "worst_day": worst}}
 
 
 # ---------------------------------------------------------------------------

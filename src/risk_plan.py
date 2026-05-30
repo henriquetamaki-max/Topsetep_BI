@@ -24,6 +24,7 @@ import daily_plan
 TABLE = "risk_plans"
 ASSETS_TABLE = "risk_plan_assets"
 REVIEWS_TABLE = "risk_reviews"
+NOTES_TABLE = "risk_day_notes"
 
 
 # --- catálogo de contratos --------------------------------------------------
@@ -180,6 +181,48 @@ def list_reviews(limit: int = 90) -> pd.DataFrame:
             .select("*")
             .order("period_end")
             .limit(limit)
+            .execute()
+        )
+        return pd.DataFrame(r.data or [])
+    except Exception:
+        return pd.DataFrame()
+
+
+# --- comentários por dia (risk_day_notes) -----------------------------------
+
+
+def save_day_note(trade_day: date, comment: str) -> dict:
+    """Upsert do comentário do trader na linha (user, trade_day). Injeta user_id
+    (RLS). Devolve `{ok, error}`."""
+    try:
+        client = auth.get_client()
+        uid = auth.current_user_id()
+        if not uid:
+            return {"ok": False, "error": "no_user"}
+        row = {
+            "trade_day": trade_day.isoformat(),
+            "comment": comment or "",
+            "user_id": uid,
+        }
+        (
+            client.table(NOTES_TABLE)
+            .upsert(row, on_conflict="user_id,trade_day")
+            .execute()
+        )
+        return {"ok": True, "error": None}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def list_day_notes_range(start: date, end: date) -> pd.DataFrame:
+    """Comentários do usuário corrente no intervalo [start, end] (RLS filtra).
+    Colunas: trade_day, comment. Vazio em falha."""
+    try:
+        r = (
+            auth.get_client().table(NOTES_TABLE)
+            .select("trade_day, comment")
+            .gte("trade_day", start.isoformat())
+            .lte("trade_day", end.isoformat())
             .execute()
         )
         return pd.DataFrame(r.data or [])

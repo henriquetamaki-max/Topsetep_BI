@@ -213,6 +213,45 @@ class ListReviewsTests(unittest.TestCase):
         self.assertTrue(out.empty)
 
 
+class DayNoteTests(unittest.TestCase):
+    def test_save_injects_user_and_conflict(self):
+        client = MagicMock()
+        with patch.object(risk_plan.auth, "get_client", return_value=client), \
+             patch.object(risk_plan.auth, "current_user_id", return_value="u-3"):
+            out = risk_plan.save_day_note(date(2026, 5, 28), "stop tarde demais")
+        self.assertTrue(out["ok"])
+        args, kwargs = client.table.return_value.upsert.call_args
+        self.assertEqual(args[0]["user_id"], "u-3")
+        self.assertEqual(args[0]["trade_day"], "2026-05-28")
+        self.assertEqual(args[0]["comment"], "stop tarde demais")
+        self.assertEqual(kwargs.get("on_conflict"), "user_id,trade_day")
+
+    def test_save_no_user(self):
+        with patch.object(risk_plan.auth, "get_client", return_value=MagicMock()), \
+             patch.object(risk_plan.auth, "current_user_id", return_value=None):
+            out = risk_plan.save_day_note(date(2026, 5, 28), "x")
+        self.assertFalse(out["ok"])
+
+    def test_list_range_returns_df(self):
+        client = MagicMock()
+        qb = MagicMock()
+        qb.gte.return_value = qb
+        qb.lte.return_value = qb
+        qb.execute.return_value.data = [{"trade_day": "2026-05-28", "comment": "ok"}]
+        client.table.return_value.select.return_value = qb
+        with patch.object(risk_plan.auth, "get_client", return_value=client):
+            out = risk_plan.list_day_notes_range(date(2026, 5, 1), date(2026, 5, 30))
+        self.assertEqual(len(out), 1)
+        qb.gte.assert_called_with("trade_day", "2026-05-01")
+
+    def test_list_range_exception_empty(self):
+        client = MagicMock()
+        client.table.side_effect = RuntimeError("boom")
+        with patch.object(risk_plan.auth, "get_client", return_value=client):
+            out = risk_plan.list_day_notes_range(date(2026, 5, 1), date(2026, 5, 2))
+        self.assertTrue(out.empty)
+
+
 class SaveAssetsTests(unittest.TestCase):
     def test_injects_ids(self):
         client = MagicMock()
