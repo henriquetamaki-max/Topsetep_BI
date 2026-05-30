@@ -1253,8 +1253,11 @@ def _coach_headline(d: pd.DataFrame, groups: pd.DataFrame) -> list[str]:
     out: list[str] = []
     total_pnl = float(d["pnl_net"].sum())
     total = int(len(d))
+    # F-05: "loss" = pnl_net < 0 (decisão canônica 2026-05-30). Breakeven
+    # (pnl_net == 0) não é perda nem ganho — fica fora de wins e losses (dilui
+    # o win_rate, mas não infla gross_loss/avg_loss).
     wins = d[d["pnl_net"] > 0]
-    losses = d[d["pnl_net"] <= 0]
+    losses = d[d["pnl_net"] < 0]
     win_rate = len(wins) / total if total else 0.0
     gross_win = float(wins["pnl_net"].sum())
     gross_loss = float(abs(losses["pnl_net"].sum()))

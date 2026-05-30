@@ -5,6 +5,16 @@ mais recentes no topo. Datas em `AAAA-MM-DD`.
 
 ---
 
+## 2026-05-30 — Definição canônica de "trade perdedor" (F-05)
+
+**Contexto:** a classificação de loss divergia no código — `compute_kpis` (KPIs em pontos) usa `points < 0`; `_coach_headline` usava `pnl_net <= 0`, contando breakeven como perda e inflando avg_loss/contagem.
+
+**Decisão:** loss canônico (contexto PnL/coach) = **`pnl_net < 0`** (estrito; breakeven não é perda nem ganho). `_coach_headline` alinhado para `< 0`.
+
+**Alternativas consideradas:** (a) `pnl_net <= 0` — descartada: breakeven não é perda, infla avg_loss; (b) unificar tudo em pnl e mudar `compute_kpis` para pnl — descartada: o módulo de pontos mede win/loss **em pontos** de propósito (um trade pode ganhar pontos e perder em USD por fees); são conceitos distintos.
+
+**Consequências:** `compute_kpis` permanece `points < 0` (KPIs de pontos); qualquer métrica nova de win/loss por PnL deve usar `pnl_net < 0`. Breakeven dilui win_rate (correto) sem inflar gross_loss.
+
 ## 2026-05-29 — Release 3.0: Risk Planner pré-trade (arquitetura)
 
 **Contexto:** a 2.0 só avaliava risco retrospectivamente (Risk Guard reativo em `live_snapshots`). A 3.0 muda para planejamento pré-trade: dado saldo + limite de blowout, simular sizing/stops/nº de trades + probabilidade de quebra por ativo, e alimentar o plano matinal.
