@@ -1,4 +1,4 @@
--- m14_subscriptions_index.sql
+-- m17_subscriptions_index.sql
 -- Backlog do audit RLS/schema (2026-05-30, audit #3).
 --
 -- subscriptions já tem índices (status) e (stripe_customer_id) para busca
