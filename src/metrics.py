@@ -179,7 +179,7 @@ def compute_plan_adherence(groups: pd.DataFrame, plans: pd.DataFrame) -> dict:
     for idx, row in g_sorted.iterrows():
         key = (row["trade_day"], row["contract_name"], row["type"])
         max_size = plan_idx.get(key)
-        if max_size is None:
+        if max_size is None or pd.isna(max_size):
             continue
         prev = day_cumulative.get(key, 0)
         new_total = prev + _to_int(row["total_size"])
@@ -194,7 +194,7 @@ def compute_plan_adherence(groups: pd.DataFrame, plans: pd.DataFrame) -> dict:
         key = (row["trade_day"], row["contract_name"], row["type"])
         max_size = plan_idx.get(key)
 
-        if max_size is None:
+        if max_size is None or pd.isna(max_size):
             # Sem plano exato. Checa direção oposta para distinguir against_plan
             # de unplanned puro.
             day_contract = (row["trade_day"], row["contract_name"])
@@ -204,7 +204,7 @@ def compute_plan_adherence(groups: pd.DataFrame, plans: pd.DataFrame) -> dict:
                 opp_max = plan_idx.get((*day_contract, opposite))
                 return pd.Series({
                     "violation_type": "against_plan",
-                    "plan_max_size": int(opp_max) if opp_max is not None else pd.NA,
+                    "plan_max_size": int(opp_max) if opp_max is not None and not pd.isna(opp_max) else pd.NA,
                 })
             return pd.Series({"violation_type": "unplanned", "plan_max_size": pd.NA})
 
@@ -564,11 +564,17 @@ TILT_TRADES_PER_DAY_QUANTILE = 0.75
 LEAK_MIN_TRADES = 3              # mínimo de trades para considerar uma combinação
 
 
-def compute_coach(df: pd.DataFrame, groups: pd.DataFrame) -> dict:
+def compute_coach(
+    df: pd.DataFrame, groups: pd.DataFrame, tz_label: str | None = None
+) -> dict:
     """Análise comportamental: padrões, vazamentos, pontos fortes.
 
     Retorna dict pronto pra renderização. Tudo derivado dos trades já
     filtrados — respeita os filtros da sidebar automaticamente.
+
+    `tz_label` rotula o fuso do `entry_hour` no checklist (o hour é derivado
+    em `user_tz()` no load_trades). Passe `timezones.user_tz_short()`; se
+    None, omite o rótulo em vez de mentir um fuso fixo (bug F-02).
     """
     if df.empty:
         return _empty_coach()
@@ -587,7 +593,7 @@ def compute_coach(df: pd.DataFrame, groups: pd.DataFrame) -> dict:
         "strengths": _coach_combo(d, kind="strength"),
         "size_buckets": _coach_size_buckets(d),
         "points_distribution": _coach_points_dist(d),
-        "checklist": _coach_checklist(d),
+        "checklist": _coach_checklist(d, tz_label),
     }
 
 
@@ -810,13 +816,14 @@ def _coach_headline(d: pd.DataFrame, groups: pd.DataFrame) -> list[str]:
     return out
 
 
-def _coach_checklist(d: pd.DataFrame) -> list[str]:
+def _coach_checklist(d: pd.DataFrame, tz_label: str | None = None) -> list[str]:
     """Regras acionáveis derivadas dos vazamentos."""
     items: list[str] = []
+    tz_suffix = f" ({tz_label})" if tz_label else ""
     leaks = _coach_combo(d, kind="leak")
     for _, r in leaks.head(3).iterrows():
         items.append(
-            f"Evite **{r['contract_name']}** {r['weekday']} ~{int(r['entry_hour'])}h (BRT): "
+            f"Evite **{r['contract_name']}** {r['weekday']} ~{int(r['entry_hour'])}h{tz_suffix}: "
             f"{int(r['trades'])} trades, ${r['pnl']:,.0f} acumulado."
         )
     cut = _coach_cut_hold(d)
