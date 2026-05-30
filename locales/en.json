@@ -535,5 +535,9 @@
   "riskplanner.mc.verdict.high": "HIGH risk of blowing the account in {days} days",
   "riskplanner.mc.verdict.mid": "MEDIUM risk of blowing the account in {days} days",
   "riskplanner.mc.verdict.low": "LOW risk of blowing the account in {days} days",
-  "riskplanner.mc.verdict.hint": "By P(blowout): under 5% low, 5-20% medium, over 20% high."
+  "riskplanner.mc.verdict.hint": "By P(blowout): under 5% low, 5-20% medium, over 20% high.",
+  "riskplanner.mc.advanced": "Advanced (optional)",
+  "riskplanner.mc.advanced_hint": "Technical knobs. Simulations = how many random trade-sequence scenarios the model runs (more = steadier estimate, slower; default 10,000). Seed = random generator seed; fixes the result for the same inputs (default 42). Leave as is unless you want more precision or to reproduce a scenario.",
+  "riskplanner.mc.n_sims.help": "Number of simulated paths. 10,000 is plenty for a stable estimate.",
+  "riskplanner.mc.seed.help": "Random seed. Same seed + same inputs = identical result (reproducibility)."
 }

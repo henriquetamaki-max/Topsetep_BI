@@ -1785,7 +1785,7 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
     # ===== 4. Simulação Monte Carlo de blowout =====
     st.markdown(f"#### {t('riskplanner.section.mc')}")
     st.caption(t("riskplanner.mc.hint"))
-    m1, m2, m3 = st.columns(3)
+    m1, m2, m3, m4 = st.columns(4)
     win_rate = m1.number_input(
         t("riskplanner.mc.win_rate"), min_value=0.0, max_value=1.0,
         value=0.5, step=0.05, help=t("riskplanner.mc.win_rate.help"),
@@ -1796,16 +1796,21 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
     tpd = m3.number_input(
         t("riskplanner.mc.trades_per_day"), min_value=1,
         value=int(n_tr) if n_tr else 5, step=1, key="_rp_trades_per_day")
-    m4, m5, m6 = st.columns(3)
     horizon = m4.number_input(
         t("riskplanner.mc.horizon"), min_value=1, value=20, step=1,
         key="_rp_horizon_days")
-    n_sims = m5.number_input(
-        t("riskplanner.mc.n_sims"), min_value=100, max_value=50000,
-        value=10000, step=1000, key="_rp_mc_simulations")
-    seed = m6.number_input(
-        t("riskplanner.mc.seed"), min_value=0, value=42, step=1,
-        key="_rp_mc_seed")
+    # Parametros tecnicos (precisao estatistica + determinismo) — irrelevantes
+    # para o trader no dia-a-dia; escondidos num expander com defaults solidos.
+    with st.expander(t("riskplanner.mc.advanced")):
+        st.caption(t("riskplanner.mc.advanced_hint"))
+        a1, a2 = st.columns(2)
+        n_sims = a1.number_input(
+            t("riskplanner.mc.n_sims"), min_value=100, max_value=50000,
+            value=10000, step=1000, help=t("riskplanner.mc.n_sims.help"),
+            key="_rp_mc_simulations")
+        seed = a2.number_input(
+            t("riskplanner.mc.seed"), min_value=0, value=42, step=1,
+            help=t("riskplanner.mc.seed.help"), key="_rp_mc_seed")
 
     if st.button(t("riskplanner.mc.btn_run"), type="primary", width="stretch", key="_rp_run_mc"):
         if risk_usd <= 0:

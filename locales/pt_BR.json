@@ -535,5 +535,9 @@
   "riskplanner.mc.verdict.high": "Risco ALTO de quebrar a conta em {days} dias",
   "riskplanner.mc.verdict.mid": "Risco MÉDIO de quebrar a conta em {days} dias",
   "riskplanner.mc.verdict.low": "Risco BAIXO de quebrar a conta em {days} dias",
-  "riskplanner.mc.verdict.hint": "Pela P(blowout): abaixo de 5% baixo, 5-20% médio, acima de 20% alto."
+  "riskplanner.mc.verdict.hint": "Pela P(blowout): abaixo de 5% baixo, 5-20% médio, acima de 20% alto.",
+  "riskplanner.mc.advanced": "Avançado (opcional)",
+  "riskplanner.mc.advanced_hint": "Parâmetros técnicos. Simulações = quantos cenários aleatórios de sequência de trades o modelo roda (mais = estimativa mais estável, porém lento; padrão 10.000). Seed = semente do gerador aleatório; fixa o resultado para a mesma entrada (padrão 42). Deixe como está, a menos que queira mais precisão ou reproduzir um cenário.",
+  "riskplanner.mc.n_sims.help": "Número de caminhos simulados. 10.000 já basta para uma estimativa estável.",
+  "riskplanner.mc.seed.help": "Semente aleatória. Mesma seed + mesma entrada = resultado idêntico (reprodutibilidade)."
 }
