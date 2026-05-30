@@ -358,32 +358,42 @@ def render_dashboard(
     eq = df_with_groups.sort_values("entered_at").copy()
     eq["cum_pnl"] = eq["pnl_net"].cumsum()
     eq["cum_pts"] = eq["points"].cumsum()
+    # Eixo X em fuso primário (ET), tz-naive para o Plotly exibir o wall-clock
+    # correto. `entered_at` cru é UTC e desalinharia das horas vistas na tabela.
+    eq["entered_at_plot"] = timezones.to_primary(eq["entered_at"]).dt.tz_localize(None)
+    tz_lbl = timezones.PRIMARY_TZ_SHORT
 
     col_eq1, col_eq2 = st.columns(2)
     with col_eq1:
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
-                x=eq["entered_at"], y=eq["cum_pnl"], mode="lines",
+                x=eq["entered_at_plot"], y=eq["cum_pnl"], mode="lines",
                 line=dict(color=GREEN, width=2),
                 fill="tozeroy", fillcolor="rgba(34,255,136,0.12)",
                 hovertemplate="<b>%{x}</b><br>PnL acum: $%{y:,.2f}<extra></extra>",
             )
         )
-        fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.cum_pnl_usd"))
+        fig.update_layout(
+            **PLOTLY_LAYOUT, height=300,
+            title=f"{t('dash.cum_pnl_usd')} ({tz_lbl})",
+        )
         st.plotly_chart(fig, width="stretch")
 
     with col_eq2:
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
-                x=eq["entered_at"], y=eq["cum_pts"], mode="lines",
+                x=eq["entered_at_plot"], y=eq["cum_pts"], mode="lines",
                 line=dict(color=BLUE, width=2),
                 fill="tozeroy", fillcolor="rgba(101,181,255,0.12)",
                 hovertemplate="<b>%{x}</b><br>Pontos acum: %{y:,.2f}<extra></extra>",
             )
         )
-        fig.update_layout(**PLOTLY_LAYOUT, height=300, title=t("dash.cum_points"))
+        fig.update_layout(
+            **PLOTLY_LAYOUT, height=300,
+            title=f"{t('dash.cum_points')} ({tz_lbl})",
+        )
         st.plotly_chart(fig, width="stretch")
 
     # --- Daily charts (TopStepX style) --------------------------------------
@@ -858,7 +868,7 @@ def render_coach(
     df_all: pd.DataFrame,
     filter_ctx: coach_ai.FilterContext,
 ) -> None:
-    coach = metrics.compute_coach(df, groups)
+    coach = metrics.compute_coach(df, groups, tz_label=timezones.user_tz_short())
 
     # --- Gerador de prompt para análise em LLM externa -------------------------
     ai_col1, ai_col2 = st.columns([1, 3])
