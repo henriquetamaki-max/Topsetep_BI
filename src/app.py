@@ -1144,19 +1144,23 @@ def render_coach(
 # ----------------------------- Plano de Ação ---------------------------------
 
 
+# `user_id` (sem prefixo `_`) entra na chave de cache para isolar tenants no
+# mesmo processo Streamlit — list_items/list_plans filtram por auth.uid() via
+# RLS, mas sem o user_id na chave dois traders compartilhariam a entrada pelo
+# TTL. Ver gotcha 2026-05-23 (cache + `_`-prefix) em MEMORIA.md.
 @st.cache_data(ttl=30)
-def _load_action_items() -> pd.DataFrame:
+def _load_action_items(user_id: str) -> pd.DataFrame:
     return action_plan.list_items()
 
 
 @st.cache_data(ttl=30)
-def _load_day_plans(plan_date_iso: str) -> pd.DataFrame:
+def _load_day_plans(plan_date_iso: str, user_id: str) -> pd.DataFrame:
     plan_date = date.fromisoformat(plan_date_iso) if plan_date_iso else None
     return daily_plan.list_plans(plan_date=plan_date)
 
 
 @st.cache_data(ttl=30)
-def _load_all_plans() -> pd.DataFrame:
+def _load_all_plans(user_id: str) -> pd.DataFrame:
     """Devolve todos os planos do usuário autenticado (cache compartilhado
     com o Dashboard para calcular aderência ao plano)."""
     return daily_plan.list_plans(plan_date=None)
@@ -1217,7 +1221,7 @@ def render_day_plan() -> None:
     st.session_state["_day_plan_date"] = selected_date
 
     try:
-        original = _load_day_plans(selected_date.isoformat())
+        original = _load_day_plans(selected_date.isoformat(), auth.current_user_id())
     except Exception as e:
         msg = str(e)
         if "daily_plans" in msg or "does not exist" in msg.lower():
@@ -1412,7 +1416,7 @@ def render_action_plan() -> None:
     st.caption(t("plan.caption"))
 
     try:
-        original = _load_action_items()
+        original = _load_action_items(auth.current_user_id())
     except Exception as e:
         msg = str(e)
         if "action_items" in msg or "does not exist" in msg.lower():
@@ -1783,7 +1787,7 @@ segments = metrics.compute_segments(groups)
 daily = metrics.compute_daily(df_with_groups)
 overview = metrics.compute_overview(df_with_groups)
 try:
-    plans_all = _load_all_plans()
+    plans_all = _load_all_plans(auth.current_user_id())
 except Exception:
     # Se a tabela daily_plans ainda não foi criada no Supabase, segue sem
     # quebrar o dashboard. O expander de aderência mostra estado vazio.
