@@ -587,5 +587,20 @@
   "riskreview.col.maxloss": "Max loss",
   "riskreview.col.maxsize": "Max size",
   "riskreview.col.stop": "Stop",
-  "riskreview.legend": "✓ within plan · ✗ outside plan · — not planned for that day. Days shown over a column are counted as violations."
+  "riskreview.legend": "✓ within plan · ✗ outside plan · — not planned for that day. Days shown over a column are counted as violations.",
+  "riskreview.detail.title": "Day detail",
+  "riskreview.detail.select": "Day",
+  "riskreview.detail.context": "Contracts: {contracts} · {ops} ops · {w}W/{l}L · Net ${net} · best ${best} · worst ${worst}",
+  "riskreview.detail.col.dim": "Dimension",
+  "riskreview.detail.col.planned": "Planned",
+  "riskreview.detail.col.realized": "Realized",
+  "riskreview.detail.col.delta": "Delta",
+  "riskreview.detail.col.pct": "Realized/Planned",
+  "riskreview.detail.col.status": "Status",
+  "riskreview.dim.risk": "Risk/trade",
+  "riskreview.col.note": "Note",
+  "riskreview.comment.label": "Day comment (your self-review)",
+  "riskreview.comment.save": "Save comment",
+  "riskreview.comment.ok": "Comment saved.",
+  "riskreview.comment.err": "Could not save: {err}"
 }

@@ -1895,6 +1895,12 @@ def _load_reviews(user_id: str):
     return risk_plan.list_reviews()
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def _load_day_notes(user_id: str, start, end):
+    del user_id  # chave de cache por usuário (RLS isola no servidor)
+    return risk_plan.list_day_notes_range(start, end)
+
+
 def render_risk_review(user: dict, plan: dict | None, groups, plans) -> None:
     """Avaliação de Risco retrospectiva (M15): confronta os trades importados
     (já filtrados pela sidebar) contra o plano de cada dia e diz se o trader
@@ -1920,6 +1926,14 @@ def render_risk_review(user: dict, plan: dict | None, groups, plans) -> None:
         for c in _load_contracts_catalog() if c.get("symbol")
     }
     review = metrics.compute_risk_review(groups, plans, risk_plans, point_values)
+
+    notes_df = _load_day_notes(user["id"], start, end)
+    notes_map: dict = {}
+    if not notes_df.empty:
+        for _, nr in notes_df.iterrows():
+            c = str(nr.get("comment") or "").strip()
+            if c:
+                notes_map[pd.to_datetime(nr.get("trade_day")).date()] = c
 
     st.caption(t("riskreview.mae_note"))
 
@@ -1951,13 +1965,14 @@ def render_risk_review(user: dict, plan: dict | None, groups, plans) -> None:
     disp["c_loss"] = disp["dim_loss"].map(_cell)
     disp["c_size"] = disp["dim_size"].map(_cell)
     disp["c_stop"] = disp["dim_stop"].map(_cell)
+    disp["note"] = disp["trade_day"].map(lambda d: "📝" if d in notes_map else "")
     st.markdown(f"#### {t('riskreview.byday.title')}")
     st.caption(t("riskreview.legend"))
     st.dataframe(
         disp, width="stretch", hide_index=True,
         height=min(len(disp) + 1, 16) * 35 + 3,
         column_order=["trade_day", "n_ops", "realized_pnl",
-                      "c_trades", "c_loss", "c_size", "c_stop"],
+                      "c_trades", "c_loss", "c_size", "c_stop", "note"],
         column_config={
             "trade_day": st.column_config.DateColumn(
                 t("riskreview.col.day"), format="DD/MM/YYYY"),
@@ -1972,8 +1987,84 @@ def render_risk_review(user: dict, plan: dict | None, groups, plans) -> None:
                 t("riskreview.col.maxsize"), width="small"),
             "c_stop": st.column_config.TextColumn(
                 t("riskreview.col.stop"), width="small"),
+            "note": st.column_config.TextColumn(
+                t("riskreview.col.note"), width="small"),
         },
     )
+
+    # ----- Detalhe do dia (comparativo plano × realizado) + comentário --------
+    st.markdown(f"#### {t('riskreview.detail.title')}")
+    _days = list(by_day["trade_day"])
+    sel_day = st.selectbox(
+        t("riskreview.detail.select"), _days, index=len(_days) - 1,
+        format_func=lambda d: d.strftime("%d/%m/%Y"), key="_rr_detail_day",
+    )
+    detail = metrics.compute_day_detail(groups, plans, risk_plans, point_values, sel_day)
+
+    ctx = detail.get("context") or {}
+    if ctx:
+        st.caption(t(
+            "riskreview.detail.context",
+            contracts=", ".join(ctx.get("contracts", [])) or "—",
+            ops=ctx.get("n_ops", 0), w=ctx.get("n_winners", 0), l=ctx.get("n_losers", 0),
+            net=f"{ctx.get('net_pnl', 0):,.2f}",
+            best=f"{ctx.get('best_op', 0):,.2f}", worst=f"{ctx.get('worst_op', 0):,.2f}",
+        ))
+
+    _dim_label = {
+        "max_trades": t("riskreview.col.maxtrades"),
+        "max_loss": t("riskreview.col.maxloss"),
+        "max_size": t("riskreview.col.maxsize"),
+        "stop": t("riskreview.col.stop"),
+        "risco_trade": t("riskreview.dim.risk"),
+    }
+
+    def _num(v) -> str:
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return "—"
+        if isinstance(v, float) and not float(v).is_integer():
+            return f"{v:,.2f}"
+        return f"{int(v):,}"
+
+    def _pct(v) -> str:
+        return "—" if v is None else f"{v * 100:.0f}%"
+
+    drows = [{
+        "dim": _dim_label.get(dm["key"], dm["key"]),
+        "planned": _num(dm["planned"]),
+        "realized": _num(dm["realized"]),
+        "delta": _num(dm["delta"]),
+        "pct": _pct(dm["pct"]),
+        "status": _cell(dm["status"]),
+    } for dm in detail.get("dimensions", [])]
+    if drows:
+        st.dataframe(
+            pd.DataFrame(drows), width="stretch", hide_index=True,
+            column_order=["dim", "planned", "realized", "delta", "pct", "status"],
+            column_config={
+                "dim": st.column_config.TextColumn(t("riskreview.detail.col.dim")),
+                "planned": st.column_config.TextColumn(t("riskreview.detail.col.planned")),
+                "realized": st.column_config.TextColumn(t("riskreview.detail.col.realized")),
+                "delta": st.column_config.TextColumn(t("riskreview.detail.col.delta")),
+                "pct": st.column_config.TextColumn(t("riskreview.detail.col.pct")),
+                "status": st.column_config.TextColumn(t("riskreview.detail.col.status"), width="small"),
+            },
+        )
+    else:
+        st.info(t("riskreview.no_trades"))
+
+    # Comentário do dia (journaling) — key por data para resetar ao trocar o dia.
+    note_val = st.text_area(
+        t("riskreview.comment.label"), value=notes_map.get(sel_day, ""),
+        key=f"_rr_note_{sel_day.isoformat()}", height=90,
+    )
+    if st.button(t("riskreview.comment.save"), key="_rr_note_save"):
+        res = risk_plan.save_day_note(sel_day, note_val)
+        if res["ok"]:
+            st.success(t("riskreview.comment.ok"))
+            _load_day_notes.clear()
+        else:
+            st.error(t("riskreview.comment.err", err=res.get("error")))
 
     ops = review["op_violations"]
     st.markdown(f"#### {t('riskreview.ops.title')}")

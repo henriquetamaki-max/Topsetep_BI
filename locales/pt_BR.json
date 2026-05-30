@@ -587,5 +587,20 @@
   "riskreview.col.maxloss": "Max loss",
   "riskreview.col.maxsize": "Max size",
   "riskreview.col.stop": "Stop",
-  "riskreview.legend": "✓ dentro do plano · ✗ fora do plano · — não planejado naquele dia. Cada ✗ conta como violação no contador acima."
+  "riskreview.legend": "✓ dentro do plano · ✗ fora do plano · — não planejado naquele dia. Cada ✗ conta como violação no contador acima.",
+  "riskreview.detail.title": "Detalhe do dia",
+  "riskreview.detail.select": "Dia",
+  "riskreview.detail.context": "Contratos: {contracts} · {ops} ops · {w}V/{l}P · PnL ${net} · melhor ${best} · pior ${worst}",
+  "riskreview.detail.col.dim": "Dimensão",
+  "riskreview.detail.col.planned": "Planejado",
+  "riskreview.detail.col.realized": "Realizado",
+  "riskreview.detail.col.delta": "Delta",
+  "riskreview.detail.col.pct": "Realizado/Planejado",
+  "riskreview.detail.col.status": "Status",
+  "riskreview.dim.risk": "Risco/trade",
+  "riskreview.col.note": "Nota",
+  "riskreview.comment.label": "Comentário do dia (sua autoavaliação)",
+  "riskreview.comment.save": "Salvar comentário",
+  "riskreview.comment.ok": "Comentário salvo.",
+  "riskreview.comment.err": "Não foi possível salvar: {err}"
 }
