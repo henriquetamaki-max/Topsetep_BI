@@ -579,5 +579,13 @@
   "riskreview.save_ok": "Avaliação salva.",
   "riskreview.save_err": "Não foi possível salvar: {err}",
   "riskreview.evolution.title": "Evolução do score",
-  "riskreview.evolution.hint": "Salve avaliações de períodos diferentes para acompanhar o score ao longo do tempo."
+  "riskreview.evolution.hint": "Salve avaliações de períodos diferentes para acompanhar o score ao longo do tempo.",
+  "riskreview.kpi.maxtrades": "Max trades furado",
+  "riskreview.kpi.maxloss": "Max loss (DLL) furado",
+  "riskreview.kpi.maxsize": "Max size furado",
+  "riskreview.col.maxtrades": "Max trades",
+  "riskreview.col.maxloss": "Max loss",
+  "riskreview.col.maxsize": "Max size",
+  "riskreview.col.stop": "Stop",
+  "riskreview.legend": "✓ dentro do plano · ✗ fora do plano · — não planejado naquele dia. Cada ✗ conta como violação no contador acima."
 }

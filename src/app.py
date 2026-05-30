@@ -1923,52 +1923,55 @@ def render_risk_review(user: dict, plan: dict | None, groups, plans) -> None:
 
     st.caption(t("riskreview.mae_note"))
 
-    k1, k2, k3, k4, k5 = st.columns(5)
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
     k1.metric(t("riskreview.kpi.score"),
               f"{review['clean_days']}/{review['total_days']}",
               help=t("riskreview.kpi.score.help"))
-    k2.metric(t("riskreview.kpi.stop"), review["stop_furado"])
-    k3.metric(t("riskreview.kpi.risk"), review["risco_excedido"])
-    k4.metric(t("riskreview.kpi.dll"), review["dll_furado"])
-    k5.metric(t("riskreview.kpi.blowout"), review["blowout"])
+    k2.metric(t("riskreview.kpi.maxtrades"), review["max_trades"])
+    k3.metric(t("riskreview.kpi.maxloss"), review["max_loss"])
+    k4.metric(t("riskreview.kpi.maxsize"), review["max_size"])
+    k5.metric(t("riskreview.kpi.stop"), review["stop"])
+    k6.metric(t("riskreview.kpi.blowout"), review["blowout"])
 
     by_day = review["by_day"]
     if by_day.empty:
         st.info(t("riskreview.no_trades"))
         return
 
-    vmap = {
-        "stop_furado": t("riskreview.v.stop_furado"),
-        "risco_excedido": t("riskreview.v.risco_excedido"),
-        "dll_furado": t("riskreview.v.dll_furado"),
-        "blowout": t("riskreview.v.blowout"),
-    }
+    # Itemiza por dimensão: ✓ dentro do plano · ✗ fora · — não planejado.
+    _sym = {"ok": "✓", "viol": "✗"}
 
-    def _verdict(row) -> str:
-        if not row["has_plan"]:
-            return t("riskreview.verdict.no_plan")
-        if row["clean"]:
-            return "✓ " + t("riskreview.verdict.ok")
-        keys = [k for k in str(row["violations"]).split(",") if k]
-        return " · ".join(vmap.get(k, k) for k in keys)
+    def _cell(v) -> str:
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return "—"
+        return _sym.get(v, "—")
 
     disp = by_day.copy()
-    disp["verdict"] = disp.apply(_verdict, axis=1)
+    disp["c_trades"] = disp["dim_trades"].map(_cell)
+    disp["c_loss"] = disp["dim_loss"].map(_cell)
+    disp["c_size"] = disp["dim_size"].map(_cell)
+    disp["c_stop"] = disp["dim_stop"].map(_cell)
     st.markdown(f"#### {t('riskreview.byday.title')}")
+    st.caption(t("riskreview.legend"))
     st.dataframe(
         disp, width="stretch", hide_index=True,
         height=min(len(disp) + 1, 16) * 35 + 3,
-        column_order=["trade_day", "n_ops", "realized_pnl", "planned_dll", "verdict"],
+        column_order=["trade_day", "n_ops", "realized_pnl",
+                      "c_trades", "c_loss", "c_size", "c_stop"],
         column_config={
             "trade_day": st.column_config.DateColumn(
                 t("riskreview.col.day"), format="DD/MM/YYYY"),
             "n_ops": st.column_config.NumberColumn(t("riskreview.col.ops")),
             "realized_pnl": st.column_config.NumberColumn(
                 t("riskreview.col.pnl"), format="$%.2f"),
-            "planned_dll": st.column_config.NumberColumn(
-                t("riskreview.col.dll"), format="$%.0f"),
-            "verdict": st.column_config.TextColumn(
-                t("riskreview.col.verdict"), width="large"),
+            "c_trades": st.column_config.TextColumn(
+                t("riskreview.col.maxtrades"), width="small"),
+            "c_loss": st.column_config.TextColumn(
+                t("riskreview.col.maxloss"), width="small"),
+            "c_size": st.column_config.TextColumn(
+                t("riskreview.col.maxsize"), width="small"),
+            "c_stop": st.column_config.TextColumn(
+                t("riskreview.col.stop"), width="small"),
         },
     )
 

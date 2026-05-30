@@ -579,5 +579,13 @@
   "riskreview.save_ok": "Evaluación guardada.",
   "riskreview.save_err": "No se pudo guardar: {err}",
   "riskreview.evolution.title": "Evolución del score",
-  "riskreview.evolution.hint": "Guarda evaluaciones de períodos distintos para seguir el score en el tiempo."
+  "riskreview.evolution.hint": "Guarda evaluaciones de períodos distintos para seguir el score en el tiempo.",
+  "riskreview.kpi.maxtrades": "Max trades superado",
+  "riskreview.kpi.maxloss": "Max loss (DLL) superado",
+  "riskreview.kpi.maxsize": "Max size superado",
+  "riskreview.col.maxtrades": "Max trades",
+  "riskreview.col.maxloss": "Max loss",
+  "riskreview.col.maxsize": "Max size",
+  "riskreview.col.stop": "Stop",
+  "riskreview.legend": "✓ dentro del plan · ✗ fuera del plan · — no planificado ese día. Cada ✗ cuenta como violación en el contador de arriba."
 }

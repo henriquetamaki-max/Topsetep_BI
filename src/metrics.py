@@ -257,9 +257,9 @@ def _empty_adherence() -> dict:
 # Avaliação de Risco retrospectiva (M15) — confronta trades x plano do dia
 # ---------------------------------------------------------------------------
 
-# Tipos de erro avaliados. stop_furado/risco_excedido por operação; dll_furado/
-# blowout por dia. (Aderência M8 cobre tamanho+direção; aqui cobrimos risco.)
-RISK_REVIEW_VIOLATIONS = ("stop_furado", "risco_excedido", "dll_furado", "blowout")
+# Dimensões avaliadas por dia. Cada uma vira coluna dim_<x> com status
+# "ok"/"viol"/None (None = sem referência no plano daquele dia → "—" na UI).
+RISK_REVIEW_DIMS = ("max_trades", "max_loss", "max_size", "stop")
 
 
 def _as_date(v):
@@ -272,49 +272,33 @@ def _as_date(v):
         return None
 
 
-def _risk_usd_from_plan(rp: dict, balance: float) -> float | None:
-    """Risco $/trade alvo a partir do header risk_plans. Espelha
-    risk_engine.risk_dollars_per_trade (pct do saldo OU valor fixo)."""
-    mode = rp.get("risk_mode")
-    val = rp.get("risk_value")
-    if val is None:
-        return None
-    try:
-        val = float(val)
-    except (TypeError, ValueError):
-        return None
-    if mode == "pct":
-        return balance * val / 100.0 if balance else None
-    if mode == "usd":
-        return val
-    return None
-
-
 def compute_risk_review(
     groups: pd.DataFrame,
     plans: pd.DataFrame,
     risk_plans: pd.DataFrame,
     point_values: dict | None = None,
 ) -> dict:
-    """Avalia, por dia (fuso ET), se o trader cumpriu o plano de risco e onde
-    errou. 4 dimensões:
+    """Avalia, por dia (fuso ET), o que ficou **dentro** e **fora** do plano.
+    Cada dimensão recebe status `ok` / `viol` / `None` (sem referência no plano):
 
-    - **stop_furado** (por operação): perda realizada do grupo perdedor maior que
-      o risco $ planejado = `daily_plans.stop_points × point_value × max_size`.
-    - **risco_excedido** (por dia): perda média das operações perdedoras acima do
-      risco $/trade alvo do `risk_plans`.
-    - **dll_furado** (por dia, crítico): PnL líquido do dia ≤ −`daily_loss_limit_usd`.
-    - **blowout** (por dia, crítico): drawdown acumulado do período ≥ distância ao
-      MLL (`balance_usd − mll_threshold_usd`) do plano vigente.
+    - **max_trades** (de `risk_plans.trades_per_day`): nº de operações do dia
+      acima do planejado.
+    - **max_loss** (de `risk_plans.daily_loss_limit_usd`): PnL do dia ≤ −DLL.
+    - **max_size** (de `daily_plans.max_size`): alguma operação acima do tamanho
+      planejado para o contrato/direção.
+    - **stop** (de `daily_plans.stop_points × point_value × max_size`): operação
+      perdedora cuja perda realizada passou do risco planejado.
+    - **blowout** (flag de dia): drawdown acumulado ≥ distância ao MLL.
 
-    LIMITAÇÃO: sem MAE/MFE no CSV, "respeitou o stop" mede a **perda realizada**,
-    não o pior momento intrabar.
+    Dia sem nenhuma referência (`has_plan=False`) entra em `by_day` como "sem
+    plano" e fica **fora** do score. Score = % de dias-com-plano sem nenhuma
+    violação (dimensões `None` não quebram o dia).
 
-    Score = % de **dias com plano** sem nenhuma violação. Dias sem plano entram em
-    `by_day` marcados `has_plan=False` e não contam no denominador.
+    LIMITAÇÃO: sem MAE/MFE no CSV, "stop" mede a **perda realizada**, não o pior
+    momento intrabar.
 
-    Devolve dict com contadores + `by_day` (1 linha/dia) + `op_violations`
-    (1 linha por operação que furou stop) prontos para render.
+    Devolve contadores (nº de dias com cada violação) + `by_day` + `op_violations`
+    (1 linha por operação que furou stop).
     """
     point_values = point_values or {}
     if groups is None or groups.empty:
@@ -329,6 +313,7 @@ def compute_risk_review(
 
     # Índices de plano: (date, contract, dir) -> (max_size, stop_points).
     plan_idx: dict[tuple, tuple] = {}
+    daily_days: set = set()
     if plans is not None and not plans.empty:
         for _, p in plans.iterrows():
             d = _as_date(p.get("plan_date"))
@@ -337,6 +322,7 @@ def compute_risk_review(
             plan_idx[(d, str(p.get("contract_name")), str(p.get("direction")))] = (
                 p.get("max_size"), p.get("stop_points"),
             )
+            daily_days.add(d)
 
     # Header risk_plans por dia.
     rp_by_date: dict = {}
@@ -359,30 +345,39 @@ def compute_risk_review(
         cum_pnl += realized
         peak = max(peak, cum_pnl)
         drawdown = peak - cum_pnl
+        n_ops = int(len(gd))
 
         losers = gd[pd.to_numeric(gd["total_net_pnl"], errors="coerce") < 0]
-        loss_vals = pd.to_numeric(losers["total_net_pnl"], errors="coerce").abs()
-        n_losers = int(len(losers))
-        worst_loss = float(loss_vals.max()) if n_losers else 0.0
-        avg_loss = float(loss_vals.mean()) if n_losers else 0.0
 
         rp = rp_by_date.get(d)
         has_rp = rp is not None
+        has_daily = d in daily_days
         balance = float(rp.get("balance_usd") or 0.0) if has_rp else 0.0
         planned_dll = float(rp["daily_loss_limit_usd"]) if has_rp and rp.get("daily_loss_limit_usd") else None
-        planned_risk = _risk_usd_from_plan(rp, balance) if has_rp else None
+        planned_trades = int(rp["trades_per_day"]) if has_rp and rp.get("trades_per_day") else None
         distance = (
             balance - float(rp.get("mll_threshold_usd") or 0.0)
             if has_rp and balance else None
         )
 
-        # stop por operação perdedora (precisa de plano daily + point_value).
+        # max_size: alguma operação acima do tamanho planejado (contrato+direção).
+        size_viol = False
+        for _, op in gd.iterrows():
+            mp = plan_idx.get((d, str(op.get("contract_name")), str(op.get("type"))))
+            if not mp or mp[0] is None:
+                continue
+            try:
+                if _to_int(op.get("total_size")) > int(mp[0]):
+                    size_viol = True
+            except (TypeError, ValueError):
+                continue
+
+        # stop: por operação perdedora (precisa de plano daily + point_value).
         n_stop = 0
         for _, op in losers.iterrows():
-            key = (d, str(op.get("contract_name")), str(op.get("type")))
-            mp = plan_idx.get(key)
+            mp = plan_idx.get((d, str(op.get("contract_name")), str(op.get("type"))))
             pv = point_values.get(str(op.get("contract_name")))
-            if not mp or pv is None:
+            if not mp or pv is None or mp[1] is None:
                 continue
             max_size, stop_points = mp
             try:
@@ -403,58 +398,58 @@ def compute_risk_review(
                     "excess": round(realized_loss - planned_max_loss, 2),
                 })
 
-        dll_furado = bool(planned_dll is not None and realized <= -planned_dll)
-        risco_excedido = bool(planned_risk is not None and n_losers > 0 and avg_loss > planned_risk)
+        # Status por dimensão: None = sem referência; senão ok/viol.
+        dim_trades = None if planned_trades is None else ("viol" if n_ops > planned_trades else "ok")
+        dim_loss = None if planned_dll is None else ("viol" if realized <= -planned_dll else "ok")
+        dim_size = None if not has_daily else ("viol" if size_viol else "ok")
+        dim_stop = None if not has_daily else ("viol" if n_stop > 0 else "ok")
         blowout = bool(distance is not None and distance > 0 and drawdown >= distance)
-        has_plan = bool(has_rp or any(k[0] == d for k in plan_idx))
-        clean = bool(has_plan and n_stop == 0 and not dll_furado and not risco_excedido and not blowout)
 
-        v_list = []
-        if n_stop:
-            v_list.append("stop_furado")
-        if risco_excedido:
-            v_list.append("risco_excedido")
-        if dll_furado:
-            v_list.append("dll_furado")
-        if blowout:
-            v_list.append("blowout")
+        has_plan = bool(has_rp or has_daily)
+        any_viol = any(s == "viol" for s in (dim_trades, dim_loss, dim_size, dim_stop)) or blowout
+        clean = bool(has_plan and not any_viol)
 
         day_rows.append({
             "trade_day": d,
-            "n_ops": int(len(gd)),
-            "n_losers": n_losers,
+            "n_ops": n_ops,
             "realized_pnl": round(realized, 2),
-            "cum_pnl": round(cum_pnl, 2),
-            "drawdown": round(drawdown, 2),
-            "worst_loss": round(worst_loss, 2),
-            "avg_loss": round(avg_loss, 2),
+            "planned_trades": planned_trades,
             "planned_dll": planned_dll,
-            "planned_risk": round(planned_risk, 2) if planned_risk is not None else None,
-            "distance_to_blowout": round(distance, 2) if distance is not None else None,
-            "n_stop_violations": n_stop,
-            "dll_furado": dll_furado,
-            "risco_excedido": risco_excedido,
+            "dim_trades": dim_trades,
+            "dim_loss": dim_loss,
+            "dim_size": dim_size,
+            "dim_stop": dim_stop,
             "blowout": blowout,
             "has_plan": has_plan,
             "clean": clean,
-            "violations": ",".join(v_list),
         })
 
     by_day = pd.DataFrame(day_rows)
     op_violations = pd.DataFrame(op_rows)
+
+    # Uniformiza as dims para None: colunas com algum "ok"/"viol" viram StringDtype
+    # (NA=nan) enquanto all-None ficam object(None). Normaliza para None puro, que
+    # teste e UI tratam de forma previsível (pd.isna vs `is None`).
+    if not by_day.empty:
+        for c in ("dim_trades", "dim_loss", "dim_size", "dim_stop"):
+            by_day[c] = by_day[c].astype(object).where(by_day[c].notna(), None)
 
     planned_days = by_day[by_day["has_plan"]] if not by_day.empty else by_day
     total_days = int(len(planned_days))
     clean_days = int(planned_days["clean"].sum()) if total_days else 0
     score_pct = 100.0 * clean_days / total_days if total_days else 0.0
 
+    def _count(col: str) -> int:
+        return int((by_day[col] == "viol").sum()) if not by_day.empty else 0
+
     return {
         "total_days": total_days,
         "clean_days": clean_days,
         "score_pct": score_pct,
-        "stop_furado": int(by_day["n_stop_violations"].sum()) if not by_day.empty else 0,
-        "risco_excedido": int(by_day["risco_excedido"].sum()) if not by_day.empty else 0,
-        "dll_furado": int(by_day["dll_furado"].sum()) if not by_day.empty else 0,
+        "max_trades": _count("dim_trades"),
+        "max_loss": _count("dim_loss"),
+        "max_size": _count("dim_size"),
+        "stop": _count("dim_stop"),
         "blowout": int(by_day["blowout"].sum()) if not by_day.empty else 0,
         "by_day": by_day,
         "op_violations": op_violations,
@@ -466,9 +461,10 @@ def _empty_risk_review() -> dict:
         "total_days": 0,
         "clean_days": 0,
         "score_pct": 0.0,
-        "stop_furado": 0,
-        "risco_excedido": 0,
-        "dll_furado": 0,
+        "max_trades": 0,
+        "max_loss": 0,
+        "max_size": 0,
+        "stop": 0,
         "blowout": 0,
         "by_day": pd.DataFrame(),
         "op_violations": pd.DataFrame(),

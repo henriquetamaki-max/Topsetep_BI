@@ -579,5 +579,13 @@
   "riskreview.save_ok": "Evaluation saved.",
   "riskreview.save_err": "Could not save: {err}",
   "riskreview.evolution.title": "Score evolution",
-  "riskreview.evolution.hint": "Save evaluations of different periods to track the score over time."
+  "riskreview.evolution.hint": "Save evaluations of different periods to track the score over time.",
+  "riskreview.kpi.maxtrades": "Max trades exceeded",
+  "riskreview.kpi.maxloss": "Max loss (DLL) breached",
+  "riskreview.kpi.maxsize": "Max size exceeded",
+  "riskreview.col.maxtrades": "Max trades",
+  "riskreview.col.maxloss": "Max loss",
+  "riskreview.col.maxsize": "Max size",
+  "riskreview.col.stop": "Stop",
+  "riskreview.legend": "✓ within plan · ✗ outside plan · — not planned for that day. Days shown over a column are counted as violations."
 }
