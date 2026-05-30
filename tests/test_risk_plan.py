@@ -113,6 +113,40 @@ class PushToDailyPlansTests(unittest.TestCase):
         self.assertEqual(out["skipped"], 0)
 
 
+    def test_directions_both_writes_two_rows(self):
+        captured = {}
+
+        def fake_upsert(original, edited, default_date=None):
+            captured["edited"] = edited
+            return {"ok": True, "inserted": len(edited), "updated": 0, "deleted": 0, "error": None}
+
+        with patch.object(daily_plan, "list_plans", return_value=_empty_plan()), \
+             patch.object(daily_plan, "upsert_plans", side_effect=fake_upsert):
+            sel = pd.DataFrame([{"contract_name": "MNQ", "max_contracts": 5, "max_stop_points": 10.0}])
+            risk_plan.push_to_daily_plans(
+                date(2026, 5, 30), sel, directions=("Long", "Short"))
+
+        ed = captured["edited"]
+        self.assertEqual(len(ed), 2)
+        self.assertEqual(set(ed["direction"]), {"Long", "Short"})
+
+    def test_directions_short_only(self):
+        captured = {}
+
+        def fake_upsert(original, edited, default_date=None):
+            captured["edited"] = edited
+            return {"ok": True, "inserted": len(edited), "updated": 0, "deleted": 0, "error": None}
+
+        with patch.object(daily_plan, "list_plans", return_value=_empty_plan()), \
+             patch.object(daily_plan, "upsert_plans", side_effect=fake_upsert):
+            sel = pd.DataFrame([{"contract_name": "ES", "max_contracts": 1, "max_stop_points": 8.0}])
+            risk_plan.push_to_daily_plans(date(2026, 5, 30), sel, directions=("Short",))
+
+        ed = captured["edited"]
+        self.assertEqual(len(ed), 1)
+        self.assertEqual(ed.iloc[0]["direction"], "Short")
+
+
 class UpsertPlanTests(unittest.TestCase):
     def test_injects_user_id_and_conflict(self):
         client = MagicMock()

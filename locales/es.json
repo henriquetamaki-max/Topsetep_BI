@@ -570,5 +570,9 @@
   "riskreview.ops.col.realized": "Pérdida realizada",
   "riskreview.ops.col.planned": "Riesgo planificado",
   "riskreview.ops.col.excess": "Exceso",
-  "riskreview.all_clean": "Sin stops rotos en el período."
+  "riskreview.all_clean": "Sin stops rotos en el período.",
+  "riskplanner.push_direction": "Dirección planificada",
+  "riskplanner.push_dir.both": "Ambas",
+  "riskplanner.push_dir.long": "Solo Long",
+  "riskplanner.push_dir.short": "Solo Short"
 }

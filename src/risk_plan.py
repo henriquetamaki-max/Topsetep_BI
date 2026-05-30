@@ -135,20 +135,31 @@ def save_assets(risk_plan_id: int, rows: list[dict]) -> dict:
 
 
 def push_to_daily_plans(
-    plan_date: date, selected_assets: pd.DataFrame, *, overwrite: bool = False
+    plan_date: date,
+    selected_assets: pd.DataFrame,
+    *,
+    overwrite: bool = False,
+    directions: tuple[str, ...] = ("Long",),
 ) -> dict:
     """Converte os assets selecionados em linhas de daily_plans para `plan_date`.
 
-    Mapeia por ativo: max_size=max_contracts (pula <=0), stop_points=max_stop_points,
-    direction (default Long), notes='Risk Planner'. Reusa daily_plan.upsert_plans
-    (diff + injeção de user_id já testados). Respeita a UNIQUE
-    (user_id, plan_date, contract_name, direction): se já existe a mesma
-    (contrato, direção) em daily_plans, atualiza quando `overwrite`, senão pula
-    (conta em `skipped`). Devolve `{ok, inserted, updated, deleted, skipped, error}`.
+    O sizing do Risk Planner é direção-agnóstico (depende de stop + point_value,
+    não do lado), então `directions` controla para quais lados gravar: `("Long",)`
+    (default, back-compat), `("Short",)` ou `("Long","Short")` (ambas — evita que
+    operar Short caia em falso "sem plano" na aderência/avaliação).
+
+    Mapeia por (ativo × direção): max_size=max_contracts (pula <=0),
+    stop_points=max_stop_points, notes='Risk Planner'. Reusa
+    daily_plan.upsert_plans (diff + injeção de user_id já testados). Respeita a
+    UNIQUE (user_id, plan_date, contract_name, direction): se já existe a mesma
+    (contrato, direção), atualiza quando `overwrite`, senão pula (conta em
+    `skipped`). Devolve `{ok, inserted, updated, deleted, skipped, error}`.
     """
     empty = {"ok": True, "inserted": 0, "updated": 0, "deleted": 0, "skipped": 0, "error": None}
     if selected_assets is None or selected_assets.empty:
         return empty
+    if not directions:
+        directions = ("Long",)
 
     try:
         original = daily_plan.list_plans(plan_date)
@@ -168,7 +179,6 @@ def push_to_daily_plans(
         contract = str(a.get("contract_name") or "").strip().upper()
         if not contract:
             continue
-        direction = str(a.get("direction") or "Long")
         try:
             max_size = int(a.get("max_contracts") or 0)
         except (TypeError, ValueError):
@@ -177,27 +187,29 @@ def push_to_daily_plans(
             continue  # nada a planejar nesse ativo
         stop = a.get("max_stop_points")
         stop_val = float(stop) if stop is not None and pd.notna(stop) else None
-        key = (contract, direction)
-        if key in existing:
-            if overwrite:
-                idx = existing[key]
-                edited.at[idx, "max_size"] = max_size
-                edited.at[idx, "stop_points"] = stop_val
-                edited.at[idx, "notes"] = "Risk Planner"
-            else:
-                skipped += 1
-            continue
-        new_rows.append({
-            "id": pd.NA,
-            "plan_date": plan_date,
-            "contract_name": contract,
-            "direction": direction,
-            "max_size": max_size,
-            "entry_trigger": None,
-            "stop_points": stop_val,
-            "target_points": None,
-            "notes": "Risk Planner",
-        })
+        for direction in directions:
+            direction = str(direction)
+            key = (contract, direction)
+            if key in existing:
+                if overwrite:
+                    idx = existing[key]
+                    edited.at[idx, "max_size"] = max_size
+                    edited.at[idx, "stop_points"] = stop_val
+                    edited.at[idx, "notes"] = "Risk Planner"
+                else:
+                    skipped += 1
+                continue
+            new_rows.append({
+                "id": pd.NA,
+                "plan_date": plan_date,
+                "contract_name": contract,
+                "direction": direction,
+                "max_size": max_size,
+                "entry_trigger": None,
+                "stop_points": stop_val,
+                "target_points": None,
+                "notes": "Risk Planner",
+            })
 
     if new_rows:
         edited = pd.concat([edited, pd.DataFrame(new_rows)], ignore_index=True)

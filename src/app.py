@@ -1739,8 +1739,16 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
             warn_fn = st.error if rule["severity"] == "critical" else st.warning
             warn_fn(t(rule["detail_key"], **rule["ctx"]))
 
-    cps, cpush, cov, _ = st.columns([1, 1, 1, 2])
+    cps, cpush, cdir, cov = st.columns([1, 1, 1, 1])
+    # Sizing e' direcao-agnostico; deixa o trader escolher para que lado gravar
+    # no Plano do Dia. "Ambas" evita que operar Short caia em falso "sem plano".
+    push_dir = cdir.selectbox(
+        t("riskplanner.push_direction"), ["both", "long", "short"],
+        format_func=lambda d: t(f"riskplanner.push_dir.{d}"),
+        key="_rp_push_dir",
+    )
     overwrite = cov.checkbox(t("riskplanner.overwrite"), key="_rp_overwrite")
+    _dir_map = {"both": ("Long", "Short"), "long": ("Long",), "short": ("Short",)}
 
     if cps.button(t("riskplanner.btn.save"), type="primary", width="stretch", key="_rp_save"):
         header = {
@@ -1769,7 +1777,9 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
         disabled=selected.empty,
     ):
         with st.spinner(t("riskplanner.pushing")):
-            res = risk_plan.push_to_daily_plans(sel_date, selected, overwrite=overwrite)
+            res = risk_plan.push_to_daily_plans(
+                sel_date, selected, overwrite=overwrite,
+                directions=_dir_map[push_dir])
         if res["ok"]:
             if res["inserted"] == 0 and res["updated"] == 0 and res.get("skipped", 0) > 0:
                 st.info(t("riskplanner.push_skipped", n=res["skipped"]))

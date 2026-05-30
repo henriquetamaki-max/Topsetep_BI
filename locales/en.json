@@ -570,5 +570,9 @@
   "riskreview.ops.col.realized": "Realized loss",
   "riskreview.ops.col.planned": "Planned risk",
   "riskreview.ops.col.excess": "Excess",
-  "riskreview.all_clean": "No stop violations in the period."
+  "riskreview.all_clean": "No stop violations in the period.",
+  "riskplanner.push_direction": "Planned direction",
+  "riskplanner.push_dir.both": "Both",
+  "riskplanner.push_dir.long": "Long only",
+  "riskplanner.push_dir.short": "Short only"
 }

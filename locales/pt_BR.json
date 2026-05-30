@@ -570,5 +570,9 @@
   "riskreview.ops.col.realized": "Perda realizada",
   "riskreview.ops.col.planned": "Risco planejado",
   "riskreview.ops.col.excess": "Excesso",
-  "riskreview.all_clean": "Nenhum stop furado no período."
+  "riskreview.all_clean": "Nenhum stop furado no período.",
+  "riskplanner.push_direction": "Direção planejada",
+  "riskplanner.push_dir.both": "Ambas",
+  "riskplanner.push_dir.long": "Só Long",
+  "riskplanner.push_dir.short": "Só Short"
 }
