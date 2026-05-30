@@ -151,5 +151,39 @@ class SaveAssetsTests(unittest.TestCase):
         self.assertEqual(ins_args[0][0]["user_id"], "u-1")
 
 
+class ListPlansRangeTests(unittest.TestCase):
+    def _client_returning(self, rows):
+        client = MagicMock()
+        qb = MagicMock()
+        qb.gte.return_value = qb
+        qb.lte.return_value = qb
+        qb.order.return_value = qb
+        qb.execute.return_value.data = rows
+        client.table.return_value.select.return_value = qb
+        return client, qb
+
+    def test_filters_range_and_returns_df(self):
+        rows = [{"plan_date": "2026-05-28", "balance_usd": 50000}]
+        client, qb = self._client_returning(rows)
+        with patch.object(risk_plan.auth, "get_client", return_value=client):
+            out = risk_plan.list_plans_range(date(2026, 5, 28), date(2026, 5, 30))
+        self.assertEqual(len(out), 1)
+        qb.gte.assert_called_with("plan_date", "2026-05-28")
+        qb.lte.assert_called_with("plan_date", "2026-05-30")
+
+    def test_empty_data_returns_empty_df(self):
+        client, _ = self._client_returning([])
+        with patch.object(risk_plan.auth, "get_client", return_value=client):
+            out = risk_plan.list_plans_range(date(2026, 5, 1), date(2026, 5, 2))
+        self.assertTrue(out.empty)
+
+    def test_exception_returns_empty_df(self):
+        client = MagicMock()
+        client.table.side_effect = RuntimeError("boom")
+        with patch.object(risk_plan.auth, "get_client", return_value=client):
+            out = risk_plan.list_plans_range(date(2026, 5, 1), date(2026, 5, 2))
+        self.assertTrue(out.empty)
+
+
 if __name__ == "__main__":
     unittest.main()

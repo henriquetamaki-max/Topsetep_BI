@@ -61,6 +61,24 @@ def get_plan(plan_date: date) -> dict | None:
         return None
 
 
+def list_plans_range(start: date, end: date) -> pd.DataFrame:
+    """Headers risk_plans no intervalo [start, end] (inclusivo) para o usuário
+    corrente — RLS filtra. Usado pela Avaliação de Risco (M15) para confrontar
+    trades importados contra o plano de cada dia. DataFrame vazio em falha."""
+    try:
+        r = (
+            auth.get_client().table(TABLE)
+            .select("*")
+            .gte("plan_date", start.isoformat())
+            .lte("plan_date", end.isoformat())
+            .order("plan_date")
+            .execute()
+        )
+        return pd.DataFrame(r.data or [])
+    except Exception:
+        return pd.DataFrame()
+
+
 def upsert_plan(payload: dict) -> dict:
     """Upsert do header na linha (user, plan_date). Injeta user_id (RLS exige).
     Devolve `{ok, id, error}` — `id` é necessário para gravar os assets."""
