@@ -1537,6 +1537,10 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
         st.caption(t("paywall.riskplanner.cta"))
         return
 
+    # Explicador do fluxo: o trader precisa enxergar que isto e' um caminho
+    # (conta -> risco -> ativos -> simulacao), nao um amontoado de inputs.
+    st.info(t("riskplanner.how_it_works"), icon="🧭")
+
     # Dia alvo = amanhã em ET (consistente com trade_day_et do resto do sistema).
     tomorrow_et = (pd.Timestamp.now(tz=timezones.PRIMARY_TZ) + pd.Timedelta(days=1)).date()
     if "_risk_plan_date" not in st.session_state:
@@ -1552,7 +1556,10 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
     existing = risk_plan.get_plan(sel_date) or {}
     rs = risk_settings.get_settings() or {}
 
-    # ----- inputs -----
+    # ===== 1. Sua conta =====
+    st.markdown(f"#### {t('riskplanner.section.account')}")
+    st.caption(t("riskplanner.section.account_hint"))
+
     account_types = risk_settings.ACCOUNT_TYPES
     default_at = existing.get("account_type") or rs.get("account_type") or account_types[0]
     at_index = account_types.index(default_at) if default_at in account_types else 0
@@ -1596,7 +1603,13 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
         t("riskplanner.dll"), min_value=0.0, value=dll_default, step=100.0,
         help=t("riskplanner.dll_help"), key="_rp_dll",
     )
+    # Mostra de onde veio o MLL sugerido (buffer TopStep do tamanho da conta).
+    if buffer and size_key:
+        st.caption(t("riskplanner.buffer_auto", size=size_key, buffer=f"{buffer:,.0f}"))
 
+    # ===== 2. Seu risco por trade =====
+    st.markdown(f"#### {t('riskplanner.section.risk')}")
+    st.caption(t("riskplanner.section.risk_hint"))
     r1, r2, r3 = st.columns(3)
     risk_mode = r1.radio(
         t("riskplanner.risk_mode"), ["pct", "usd"],
@@ -1627,20 +1640,42 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
         st.warning(t("riskplanner.err.custom_dll"))
 
     risk_usd = risk_engine.risk_dollars_per_trade(balance, risk_mode, risk_value)
+    # Fecha o elo input->numero: o risco $/trade e' a base de todo o sizing.
+    st.markdown(
+        f"<p class='pos' style='font-weight:600'>→ {t('riskplanner.risk_derived', risk=f'{risk_usd:,.2f}')}</p>",
+        unsafe_allow_html=True,
+    )
 
-    # ----- KPIs -----
+    # ----- KPIs com leitura em linguagem simples -----
     n_tr = risk_engine.trades_to_dll(dll, risk_usd)
     days_bo = risk_engine.days_to_blowout(distance, dll)
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric(t("riskplanner.kpi.risk_per_trade"), f"${risk_usd:,.2f}")
-    k2.metric(t("riskplanner.kpi.trades_to_dll"), n_tr if n_tr else "—")
-    k3.metric(t("riskplanner.kpi.distance"), f"${distance:,.2f}")
-    k4.metric(
-        t("riskplanner.kpi.days_to_blowout"),
-        int(days_bo) if days_bo is not None else "—",
-    )
+    with k1:
+        st.metric(t("riskplanner.kpi.risk_per_trade"), f"${risk_usd:,.2f}",
+                  help=t("riskplanner.kpi.risk_per_trade.help"))
+        st.caption(t("riskplanner.kpi.risk_per_trade.read"))
+    with k2:
+        st.metric(t("riskplanner.kpi.trades_to_dll"), n_tr if n_tr else "—",
+                  help=t("riskplanner.kpi.trades_to_dll.help"))
+        if n_tr and n_tr <= 2:
+            st.markdown(
+                f"<span class='neg'>⚠ {t('riskplanner.kpi.trades_to_dll.read', n=n_tr)}</span>",
+                unsafe_allow_html=True)
+        elif n_tr:
+            st.caption(t("riskplanner.kpi.trades_to_dll.read", n=n_tr))
+    with k3:
+        st.metric(t("riskplanner.kpi.distance"), f"${distance:,.2f}",
+                  help=t("riskplanner.kpi.distance.help"))
+        st.caption(t("riskplanner.kpi.distance.read"))
+    with k4:
+        st.metric(
+            t("riskplanner.kpi.days_to_blowout"),
+            int(days_bo) if days_bo is not None else "—",
+            help=t("riskplanner.kpi.days_to_blowout.help"))
+        if days_bo is not None:
+            st.caption(t("riskplanner.kpi.days_to_blowout.read", n=int(days_bo)))
 
-    # ----- comparativo por ativo -----
+    # ===== 3. Que ativos cabem no seu risco =====
     contracts = _load_contracts_catalog()
     if not contracts:
         st.info(t("riskplanner.no_contracts"))
@@ -1651,11 +1686,17 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
         default_stop_points=stop_points, account_type=account_type,
         max_position_size=rs.get("max_position_size"),
     )
-    st.markdown(f"#### {t('riskplanner.compare.title')}")
+    st.markdown(f"#### {t('riskplanner.section.assets')}")
     st.caption(t("riskplanner.compare.hint"))
 
     comp_display = comp.copy()
     comp_display.insert(0, "selected", False)
+    # Recomendado = maior max_contracts (compare_assets ja ordena desc). Marca a
+    # linha topo por padrao e anuncia, para o trader saber por onde comecar.
+    if not comp_display.empty and float(comp_display.iloc[0]["max_contracts"] or 0) > 0:
+        comp_display.iloc[0, comp_display.columns.get_loc("selected")] = True
+        st.caption(t("riskplanner.compare.recommended",
+                     name=str(comp_display.iloc[0]["contract_name"])))
     edited = st.data_editor(
         comp_display,
         width="stretch", hide_index=True,
@@ -1737,70 +1778,90 @@ def render_risk_planner(user: dict, plan: dict | None) -> None:
         else:
             st.error(t("riskplanner.push_err", err=res.get("error")))
 
-    # ----- Monte Carlo de blowout -----
-    with st.expander(t("riskplanner.section.mc")):
-        m1, m2, m3 = st.columns(3)
-        win_rate = m1.number_input(
-            t("riskplanner.mc.win_rate"), min_value=0.0, max_value=1.0,
-            value=0.5, step=0.05, key="_rp_win_rate")
-        avg_r = m2.number_input(
-            t("riskplanner.mc.avg_r"), min_value=0.1, value=1.5, step=0.1,
-            key="_rp_avg_r")
-        tpd = m3.number_input(
-            t("riskplanner.mc.trades_per_day"), min_value=1,
-            value=int(n_tr) if n_tr else 5, step=1, key="_rp_trades_per_day")
-        m4, m5, m6 = st.columns(3)
-        horizon = m4.number_input(
-            t("riskplanner.mc.horizon"), min_value=1, value=20, step=1,
-            key="_rp_horizon_days")
-        n_sims = m5.number_input(
-            t("riskplanner.mc.n_sims"), min_value=100, max_value=50000,
-            value=10000, step=1000, key="_rp_mc_simulations")
-        seed = m6.number_input(
-            t("riskplanner.mc.seed"), min_value=0, value=42, step=1,
-            key="_rp_mc_seed")
+    # ===== 4. Simulação Monte Carlo de blowout =====
+    st.markdown(f"#### {t('riskplanner.section.mc')}")
+    st.caption(t("riskplanner.mc.hint"))
+    m1, m2, m3 = st.columns(3)
+    win_rate = m1.number_input(
+        t("riskplanner.mc.win_rate"), min_value=0.0, max_value=1.0,
+        value=0.5, step=0.05, help=t("riskplanner.mc.win_rate.help"),
+        key="_rp_win_rate")
+    avg_r = m2.number_input(
+        t("riskplanner.mc.avg_r"), min_value=0.1, value=1.5, step=0.1,
+        help=t("riskplanner.mc.avg_r.help"), key="_rp_avg_r")
+    tpd = m3.number_input(
+        t("riskplanner.mc.trades_per_day"), min_value=1,
+        value=int(n_tr) if n_tr else 5, step=1, key="_rp_trades_per_day")
+    m4, m5, m6 = st.columns(3)
+    horizon = m4.number_input(
+        t("riskplanner.mc.horizon"), min_value=1, value=20, step=1,
+        key="_rp_horizon_days")
+    n_sims = m5.number_input(
+        t("riskplanner.mc.n_sims"), min_value=100, max_value=50000,
+        value=10000, step=1000, key="_rp_mc_simulations")
+    seed = m6.number_input(
+        t("riskplanner.mc.seed"), min_value=0, value=42, step=1,
+        key="_rp_mc_seed")
 
-        if st.button(t("riskplanner.mc.btn_run"), width="stretch", key="_rp_run_mc"):
-            if risk_usd <= 0:
-                st.warning(t("riskplanner.err.stop"))
+    if st.button(t("riskplanner.mc.btn_run"), type="primary", width="stretch", key="_rp_run_mc"):
+        if risk_usd <= 0:
+            st.warning(t("riskplanner.err.stop"))
+        else:
+            with st.spinner(t("riskplanner.mc.running")):
+                mc = _run_monte_carlo(
+                    float(balance), float(mll), float(dll), float(risk_usd),
+                    float(win_rate), float(avg_r), int(tpd), int(horizon),
+                    trailing_mode, size_key, int(n_sims), int(seed),
+                )
+            if mc.get("degenerate"):
+                st.warning(t("riskplanner.mc.degenerate"))
             else:
-                with st.spinner(t("riskplanner.mc.running")):
-                    mc = _run_monte_carlo(
-                        float(balance), float(mll), float(dll), float(risk_usd),
-                        float(win_rate), float(avg_r), int(tpd), int(horizon),
-                        trailing_mode, size_key, int(n_sims), int(seed),
-                    )
-                if mc.get("degenerate"):
-                    st.warning(t("riskplanner.mc.degenerate"))
+                # Veredito em linguagem simples: P(blowout) vira ALTO/MEDIO/BAIXO
+                # para o trader nao precisar interpretar a probabilidade crua.
+                p_bo = mc["p_blowout"]
+                if p_bo >= 0.20:
+                    vk, vcls = "high", "neg"
+                elif p_bo >= 0.05:
+                    vk, vcls = "mid", ""
                 else:
-                    x1, x2, x3, x4 = st.columns(4)
-                    x1.metric(t("riskplanner.mc.p_blowout"), f"{mc['p_blowout']*100:.1f}%")
-                    x2.metric(t("riskplanner.mc.p_dll"), f"{mc['p_hit_dll_any_day']*100:.1f}%")
-                    x3.metric(t("riskplanner.mc.p_profit"), f"{mc['p_profit']*100:.1f}%")
-                    x4.metric(t("riskplanner.mc.expected_equity"), f"${mc['expected_final_equity']:,.0f}")
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatter(y=mc["equity_curve_p50"], mode="lines", name="P50"))
-                    fig.add_hline(y=mll, line_dash="dash", line_color="#e08585")
-                    fig.update_layout(
-                        title=t("riskplanner.mc.curve_title"), height=300,
-                        margin=dict(t=40, b=20, l=20, r=20),
-                    )
-                    st.plotly_chart(fig, width="stretch")
-                    snap = {k: mc[k] for k in (
-                        "p_blowout", "p_hit_dll_any_day", "p_profit",
-                        "expected_final_equity", "equity_pctiles",
-                        "max_drawdown_pctiles", "n_sims", "seed",
-                    )}
-                    risk_plan.upsert_plan({
-                        "plan_date": sel_date.isoformat(), "account_type": account_type,
-                        "balance_usd": float(balance), "mll_threshold_usd": float(mll),
-                        "daily_loss_limit_usd": float(dll) or None,
-                        "trailing_mode": trailing_mode, "risk_mode": risk_mode,
-                        "risk_value": float(risk_value), "win_rate": float(win_rate),
-                        "avg_r": float(avg_r), "trades_per_day": int(tpd),
-                        "horizon_days": int(horizon), "mc_simulations": int(n_sims),
-                        "mc_seed": int(seed), "result_snapshot": snap,
-                    })
+                    vk, vcls = "low", "pos"
+                st.markdown(
+                    f"<h4 class='{vcls}'>{t(f'riskplanner.mc.verdict.{vk}', days=int(horizon))}</h4>",
+                    unsafe_allow_html=True)
+                st.caption(t("riskplanner.mc.verdict.hint"))
+                x1, x2, x3, x4 = st.columns(4)
+                x1.metric(t("riskplanner.mc.p_blowout"), f"{mc['p_blowout']*100:.1f}%")
+                x2.metric(t("riskplanner.mc.p_dll"), f"{mc['p_hit_dll_any_day']*100:.1f}%")
+                x3.metric(t("riskplanner.mc.p_profit"), f"{mc['p_profit']*100:.1f}%")
+                x4.metric(t("riskplanner.mc.expected_equity"), f"${mc['expected_final_equity']:,.0f}")
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    y=mc["equity_curve_p50"], mode="lines", name="P50",
+                    line=dict(color="#5b9bd5", width=2)))
+                fig.add_hline(
+                    y=mll, line_dash="dash", line_color="#e08585",
+                    annotation_text=t("riskplanner.mll"), annotation_position="top left")
+                fig.update_layout(
+                    template="plotly_dark", title=t("riskplanner.mc.curve_title"),
+                    height=300, margin=dict(t=40, b=20, l=20, r=20),
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(fig, width="stretch")
+                snap = {k: mc[k] for k in (
+                    "p_blowout", "p_hit_dll_any_day", "p_profit",
+                    "expected_final_equity", "equity_pctiles",
+                    "max_drawdown_pctiles", "n_sims", "seed",
+                )}
+                risk_plan.upsert_plan({
+                    "plan_date": sel_date.isoformat(), "account_type": account_type,
+                    "balance_usd": float(balance), "mll_threshold_usd": float(mll),
+                    "daily_loss_limit_usd": float(dll) or None,
+                    "trailing_mode": trailing_mode, "risk_mode": risk_mode,
+                    "risk_value": float(risk_value), "win_rate": float(win_rate),
+                    "avg_r": float(avg_r), "trades_per_day": int(tpd),
+                    "horizon_days": int(horizon), "mc_simulations": int(n_sims),
+                    "mc_seed": int(seed), "result_snapshot": snap,
+                })
 
 
 def render_import(user_id: str) -> None:

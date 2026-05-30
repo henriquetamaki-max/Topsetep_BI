@@ -5,7 +5,6 @@
   "app.empty_no_trades": "Aún no hay operaciones en tu perfil. Sube los CSVs exportados de TopStepX abajo para poblar el panel.",
   "app.empty_filtered": "Ninguna operación coincide con los filtros actuales.",
   "app.loading": "Cargando tus operaciones…",
-
   "auth.login_caption": "Inicia sesión para acceder a tu panel de operaciones.",
   "auth.tab_login": "Iniciar sesión",
   "auth.tab_signup": "Registrarse",
@@ -27,7 +26,6 @@
   "auth.signup_ok": "Cuenta creada y sesión iniciada.",
   "auth.err_credentials_missing": "Credenciales de Supabase faltantes. Define SUPABASE_URL y SUPABASE_ANON_KEY en `.streamlit/secrets.toml` (deploy) o en `Env/Topstep_bi.env` (local).",
   "auth.sign_out": "Cerrar sesión",
-
   "sidebar.language": "Idioma",
   "sidebar.filters": "Filtros",
   "sidebar.period_shortcuts": "Atajos de período",
@@ -50,7 +48,6 @@
   "sidebar.result.winners": "Solo ganadores",
   "sidebar.result.losers": "Solo perdedores",
   "sidebar.reload": "Recargar datos de Supabase",
-
   "weekday.monday": "Lunes",
   "weekday.tuesday": "Martes",
   "weekday.wednesday": "Miércoles",
@@ -65,7 +62,6 @@
   "weekday.short.fri": "Vie",
   "weekday.short.sat": "Sáb",
   "weekday.short.sun": "Dom",
-
   "tab.dashboard": "Panel",
   "tab.coach": "Coach",
   "tab.dayplan": "Plan del Día",
@@ -118,7 +114,7 @@
   "riskplanner.push_ok": "Plan del Día actualizado: {ins} insertados, {upd} actualizados, {skip} omitidos.",
   "riskplanner.push_skipped": "Nada grabado: {n} ya existían (marca sobrescribir para actualizar).",
   "riskplanner.push_err": "Error al grabar en el Plan del Día: {err}",
-  "riskplanner.section.mc": "Simulación Monte Carlo de blowout",
+  "riskplanner.section.mc": "4. Simulación Monte Carlo de blowout",
   "riskplanner.mc.win_rate": "Win rate (0–1)",
   "riskplanner.mc.avg_r": "R medio del ganador",
   "riskplanner.mc.trades_per_day": "Trades por día",
@@ -137,7 +133,6 @@
   "riskplanner.rule.contract_cap_custom": "Cuenta Custom: sin tope de contratos TopStep aplicado.",
   "riskplanner.rule.min_winning_day": "Ganancia diaria esperada (${expected}) por debajo del mínimo de día ganador (${min}).",
   "riskplanner.rule.consistency_50": "Mejor día (${best_day}) por encima del límite de consistencia (${cap}).",
-
   "dash.kpis_usd": "KPIs en $",
   "dash.kpi.total_pnl_net": "PnL neto total",
   "dash.kpi.trade_win_pct": "Tasa de aciertos",
@@ -152,7 +147,6 @@
   "dash.kpi.avg_win_duration": "Duración media de la ganancia",
   "dash.kpi.best_day": "Mejor día",
   "dash.kpi.worst_day": "Peor día",
-
   "dash.best_trade": "Mejor operación",
   "dash.worst_trade": "Peor operación",
   "dash.card.pnl_net": "PnL neto",
@@ -161,9 +155,7 @@
   "dash.card.entry_at": "Entrada @",
   "dash.card.exit_at": "Salida @",
   "dash.card.date": "Fecha",
-
   "dash.direction_title": "Dirección de operaciones %",
-
   "dash.kpis_pts": "KPIs en puntos",
   "dash.kpi.net_points": "Puntos netos",
   "dash.kpi.avg_win_pts": "Pts medios ganancia",
@@ -172,29 +164,23 @@
   "dash.kpi.rr_aggregate": "R/R agregado",
   "dash.kpi.operations": "Operaciones (grupos)",
   "dash.kpi.operations_delta": "Tasa de aciertos: {wr}",
-
   "dash.equity_curve": "Curva de capital",
   "dash.cum_pnl_usd": "PnL neto acumulado ($)",
   "dash.cum_points": "Puntos acumulados",
-
   "dash.daily_points": "Puntos diarios",
   "dash.daily_points_hint": "Haz clic en las barras (o dibuja una caja) para filtrar días.",
   "dash.daily_size": "Contratos por día (tamaño)",
-
   "dash.pnl_by_weekday": "PnL por día de la semana",
   "dash.pnl_by_hour": "PnL por hora de entrada (BRT)",
   "dash.axis_hour": "Hora (BRT)",
   "dash.pnl_by_contract": "PnL por contrato",
   "dash.calendar": "Calendario de PnL diario",
   "dash.calendar_hint": "Haz clic en las celdas (o dibuja una caja) para filtrar días.",
-
   "dash.daily_pnl_usd": "PnL diario ($)",
   "dash.daily_cum_title": "PnL diario neto acumulado",
   "dash.daily_net_title": "PnL diario neto",
-
   "dash.duration_analysis": "Análisis de duración de operaciones",
   "dash.win_rate_analysis": "Análisis de tasa de aciertos",
-
   "dash.adherence_expander": "Adherencia al Plan del Día",
   "dash.adherence_caption": "Compara cada operación real (grupo) con el plan matinal registrado en (fecha, contrato, dirección). Las operaciones sin plan correspondiente o que excedieron el tamaño máximo planeado aparecen como desvíos.",
   "dash.adherence.score": "Puntaje de adherencia",
@@ -210,7 +196,6 @@
   "dash.adherence.col.plan_size": "Tam. máx. plan",
   "dash.adherence.label.unplanned": "Sin plan",
   "dash.adherence.label.size_exceeded": "Tamaño excedido",
-
   "dash.additions_expander": "Análisis de Adiciones (operaciones agrupadas)",
   "dash.additions_caption": "Las operaciones que se solapan en el tiempo (mismo contrato + tipo) forman una **operación** (grupo). Adiciones = operaciones adicionales dentro de la misma operación.",
   "dash.seg.count": "Cantidad",
@@ -225,7 +210,6 @@
   "dash.seg.with_additions": "Con adición",
   "dash.seg.with_winners": "Adiciones ganadoras",
   "dash.seg.with_losers": "Adiciones perdedoras",
-
   "dash.groups_title": "**Operaciones agrupadas**",
   "dash.groups.col.group": "Grupo",
   "dash.groups.col.contract": "Contrato",
@@ -239,7 +223,6 @@
   "dash.groups.col.pnl_net": "PnL neto",
   "dash.groups.col.duration_min": "Duración (min)",
   "dash.groups.col.status": "Estado",
-
   "dash.trades_title": "Operaciones ({n})",
   "dash.trades.col.id": "ID",
   "dash.trades.col.day": "Día",
@@ -255,7 +238,6 @@
   "dash.trades.col.pnl_net": "PnL neto",
   "dash.trades.col.duration": "Duración",
   "dash.trades.col.group": "Grupo",
-
   "coach.btn_gen_prompt": "📋 Generar prompt para análisis con LLM",
   "coach.btn_gen_prompt_help": "Monta un prompt completo con los datos filtrados. Cópialo y pégalo en la UI de la LLM que prefieras.",
   "coach.copy_hint": "Copia el prompt y pégalo en Gemini, Perplexity, ChatGPT o Claude.ai.",
@@ -315,7 +297,6 @@
   "coach.dist_axis_y": "Frecuencia",
   "coach.checklist": "Checklist accionable",
   "coach.checklist_empty": "Sin recomendaciones automáticas con los filtros actuales — bien hecho o muestra pequeña.",
-
   "dayplan.title": "Plan del Día",
   "dayplan.caption": "Registra lo que pretendes hacer HOY antes de que empiece la sesión. Cada fila es un contrato + dirección planificados. Las operaciones reales se confrontan con estas filas para generar el puntaje de adherencia al plan.",
   "dayplan.date_label": "Fecha del plan",
@@ -359,7 +340,6 @@
   "dayplan.save_err": "Error al guardar: {err}",
   "dayplan.err_table_missing": "La tabla `public.daily_plans` no existe en Supabase. Ejecuta `PRD/m5_daily_plans.sql` en el SQL Editor.",
   "dayplan.err_load": "Error al cargar planes del día: {msg}",
-
   "plan.title": "Plan de Acción",
   "plan.caption": "Lista de tareas simple. Edita filas en línea, usa el (+) al final para añadir, selecciona una celda y pulsa Supr para eliminar. Haz clic en **Guardar cambios** para persistir en Supabase.",
   "plan.err_table_missing": "La tabla `public.action_items` no existe en Supabase. Ejecuta el bloque de `PRD/schema.sql` (sección 'Plano de Ação') en el SQL Editor.",
@@ -377,14 +357,12 @@
   "plan.saving": "Guardando…",
   "plan.save_ok": "Guardado: {ins} nuevas, {upd} actualizadas, {dele} eliminadas.",
   "plan.save_err": "Error al guardar: {err}",
-
   "action.status.pending": "Pendiente",
   "action.status.in_progress": "En curso",
   "action.status.done": "Completado",
   "action.priority.high": "Alta",
   "action.priority.medium": "Media",
   "action.priority.low": "Baja",
-
   "import.subheader": "Importar CSVs",
   "import.caption": "Selecciona uno o más CSVs exportados de TopStepX (o del antiguo TopStep Dashboard). La carga ocurre en tu cuenta — otros usuarios no ven tus datos.",
   "import.uploader": "Archivos CSV",
@@ -396,7 +374,6 @@
   "import.col.format": "Formato",
   "import.col.rows": "Filas",
   "import.col.status": "Estado",
-
   "coach.prompt.system": "Eres un coach de trading especializado en day trading de futuros (mini índices, mini SP, etc.).\n\nTe envío un snapshot agregado de mis operaciones en un período filtrado, junto con un período-baseline inmediatamente anterior del mismo tamaño para que compares tendencia. Los datos ya han sido preprocesados — NO necesitas consultar ninguna base de datos. Trabaja SOLO con el JSON de abajo.\n\nFILTROS APLICADOS: {filters}\n{history_block}\n\nDATOS (JSON):\n```json\n{payload}\n```",
   "coach.prompt.glossary": "Glosario rápido:\n- pnl_net: ganancia neta en USD (ya descontadas fees + comisiones).\n- net_points: puntos netos del contrato (independiente del tamaño).\n- rr_average / rr_aggregate: razón riesgo/recompensa en puntos.\n- revenge: operaciones abiertas <5min después de una pérdida por encima del promedio.\n- cut_winners_hold_losers.ratio: razón entre duración media de losses y wins. >2 es asimétrico.\n- overtrading.threshold: p75 de operaciones/día; los días por encima son \"tilt days\".\n- leaks: combinaciones (contrato × día × hora) con PnL acumulado negativo.\n- strengths: contraparte positiva.\n- baseline_period: el mismo conjunto de filtros aplicado al período anterior de igual duración (puede ser null si no hay datos previos).",
   "coach.prompt.deliver": "ENTREGA en markdown, en {language}, con estas 4 secciones obligatorias:\n\n## 1. Resumen ejecutivo\nDe 3 a 5 bullets cortos: qué funciona, qué sangra. Cita números concretos.\n\n## 2. Patrones de comportamiento\nComenta revenge, cortar/sostener, overtrading y mayor losing streak. Para cada uno: di si es un problema relevante O si está bajo control. Si la muestra es demasiado pequeña para una conclusión, dilo.\n\n## 3. Comparación con el período anterior\nSi baseline_period existe: ¿evolucionó el PnL? ¿Win rate? ¿Profit factor? ¿Los patrones de comportamiento mejoraron o empeoraron? Si no existe, di \"Sin baseline comparable\" y sigue.\n\n## 4. Checklist accionable para la próxima sesión\nDe 3 a 6 reglas concretas para aplicar mañana. Específicas: contrato, horario, día, condición. Cada regla tiene que ser ejecutable (\"No operes MNQ después de las 15h los miércoles\" — no \"ten más cuidado\").",
@@ -406,15 +383,12 @@
   "coach.prompt.history_entry": "[{when} · período analizado: {period}]",
   "coach.prompt.history_no_checklist": "(sin checklist extraíble) {text}",
   "coach.prompt.filters_str": "Período: {start} a {end} · Contratos: {contracts} · Tipos: {types} · Días: {weekdays} · Resultado: {result}",
-
   "trial.banner.active": "🎁 Trial gratuito activo — {days} día(s) restante(s). Suscríbete cuando quieras en la pestaña Cuenta.",
   "trial.banner.ending_soon": "Tu trial termina en {days} día(s). Suscríbete en la pestaña Cuenta para mantener el acceso completo.",
   "trial.banner.expired": "Tu trial gratuito ha terminado. El dashboard ahora muestra solo los últimos 30 días y la importación de CSVs está bloqueada. Suscríbete en la pestaña Cuenta para restaurar el acceso completo.",
   "billing.past_due": "Tu último pago falló. Actualiza tu tarjeta en la pestaña Cuenta para mantener la suscripción activa.",
-
   "paywall.import.blocked": "La importación de CSVs no está disponible en tu plan actual.",
   "paywall.import.cta": "Suscríbete a Basic o Pro en la pestaña Cuenta para subir nuevos trades. Tus datos existentes están preservados.",
-
   "tab.account": "Cuenta",
   "account.title": "Cuenta y facturación",
   "account.caption": "Tu plan actual, estado del trial y gestión de la suscripción.",
@@ -426,14 +400,12 @@
   "account.upgrade_section": "Elige un plan",
   "account.manage_section": "Gestionar suscripción",
   "account.manage_caption": "Actualiza tu tarjeta, cambia de plan, mira facturas o cancela — todo en el portal seguro de Stripe.",
-
   "billing.not_configured": "Stripe no está configurado en esta instalación. Suscripciones temporalmente no disponibles.",
   "billing.per_month": "mes",
   "billing.current_plan": "Tu plan actual",
   "billing.upgrade_to": "Suscribirse a {plan}",
   "billing.manage_subscription": "Gestionar suscripción",
   "billing.cancel_scheduled": "Tu suscripción se cancelará el {date}. Hasta entonces mantienes acceso completo.",
-
   "billing.plan.trial.name": "Trial",
   "billing.plan.free.name": "Free",
   "billing.plan.admin.name": "Administrador",
@@ -445,22 +417,18 @@
   "billing.plan.unlimited_imports": "Importaciones de trades ilimitadas",
   "billing.plan.feature.coach": "Análisis del Coach AI",
   "billing.plan.feature.full_dashboard": "Histórico completo del dashboard",
-
   "billing.status.trialing": "Trial",
-  "billing.status.active":   "Activa",
+  "billing.status.active": "Activa",
   "billing.status.past_due": "Pago atrasado",
   "billing.status.canceled": "Cancelada",
-  "billing.status.free":     "Free",
-
+  "billing.status.free": "Free",
   "billing.checkout.continue": "Continuar al checkout",
-  "billing.checkout.success":  "Pago recibido. Tu suscripción se activará en unos segundos.",
+  "billing.checkout.success": "Pago recibido. Tu suscripción se activará en unos segundos.",
   "billing.checkout.webhook_note": "Si el nuevo plan no aparece en ~30 segundos, haz clic en Recargar en la barra lateral.",
   "billing.checkout.canceled": "Checkout cancelado. Puedes retomarlo cuando quieras desde esta página.",
-  "billing.checkout.error":    "No se pudo iniciar el checkout: {err}",
-
+  "billing.checkout.error": "No se pudo iniciar el checkout: {err}",
   "billing.portal.continue": "Abrir portal de la suscripción",
-  "billing.portal.error":    "No se pudo abrir el portal de la suscripción: {err}",
-
+  "billing.portal.error": "No se pudo abrir el portal de la suscripción: {err}",
   "tab.settings": "Ajustes",
   "settings.title": "Ajustes",
   "settings.caption": "Personaliza idioma, zona horaria y preferencias de riesgo.",
@@ -478,14 +446,11 @@
   "settings.risk.locked_by_plan": "Risk Guard está disponible en el plan Pro (live monitor).",
   "settings.risk.stub_caption": "La configuración llega con el Live Monitor (Fase 3). Los límites vivirán en `public.risk_settings`.",
   "settings.accounts.stub_caption": "El mapeo de cuentas TopStep llega con la extensión Chrome (Fase 2).",
-
   "dash.trades.col.entered_at": "Entrada (ET / local)",
-
   "dash.adherence.against_plan": "Contra el plan",
   "dash.adherence.size_creep_day": "Creep de tamaño diario",
   "dash.adherence.label.against_plan": "Operó contra la dirección del plan",
   "dash.adherence.label.size_creep_day": "Tamaño acumulado del día excedió el plan",
-
   "account.extension_section": "Extensión Live Monitor",
   "account.extension_caption": "Conecta la extensión Chrome para enviar posición y PnL en tiempo real al BI TopStep.",
   "account.extension_jwt_label": "Tu token de la extensión (JWT)",
@@ -494,7 +459,6 @@
   "account.extension_bundle_hint": "La extensión v0.2.0+ usa este bundle para refrescar el access token automáticamente. Pega una vez y sigue funcionando hasta que se cancele el plan o cierres sesión.",
   "account.extension_jwt_hint": "El token expira cuando cierres sesión. Si la extensión reporta token inválido, vuelve a iniciar sesión y copia uno nuevo.",
   "account.extension_jwt_missing": "Inicia sesión de nuevo para generar un token.",
-
   "tab.live": "Live",
   "live.title": "Monitor en vivo",
   "live.caption": "Vista en tiempo real de posición, PnL y alertas del Risk Guard.",
@@ -531,12 +495,10 @@
   "live.install.latest_version": "Última versión disponible: v{version} (lanzada el {released}).",
   "live.install.release_notes_label": "Notas de la versión",
   "live.install.download_btn": "Descargar v{version}",
-
   "live.alerts.unread_count": "{n} alerta(s) sin leer.",
   "live.alerts.mark_all_read": "Marcar todos como leídos",
   "live.alerts.mark_read": "Marcar leído",
   "live.alerts.dismiss": "Descartar",
-
   "settings.risk.caption": "Límites del Risk Guard — usados por el trigger Postgres para crear alertas cuando los snapshots cruzan umbrales.",
   "settings.risk.account_type": "Tipo de cuenta TopStep",
   "settings.risk.dll": "Daily Loss Limit (USD)",
@@ -549,5 +511,29 @@
   "settings.risk.warning_pct_help": "Por debajo de esta fracción del DLL/Trailing DD, el alerta es 'warn' en vez de 'critical'.",
   "settings.risk.save_btn": "Guardar Risk Guard",
   "settings.risk.save_ok": "Risk Guard guardado.",
-  "settings.risk.save_err": "No se pudo guardar el Risk Guard: {err}"
+  "settings.risk.save_err": "No se pudo guardar el Risk Guard: {err}",
+  "riskplanner.how_it_works": "Cómo funciona: indicas cuánto puedes perder (saldo, MLL y límite diario) y tu riesgo por operación. El sistema calcula cuántos contratos de cada activo caben en ese riesgo, cuántas pérdidas seguidas aguantas y la probabilidad de quebrar la cuenta en el horizonte simulado. Marca los activos y guárdalos en el Plan del Día de mañana.",
+  "riskplanner.section.account": "1. Tu cuenta",
+  "riskplanner.section.account_hint": "El tipo de cuenta define el tope de contratos y los límites de TopStep.",
+  "riskplanner.section.risk": "2. Tu riesgo por operación",
+  "riskplanner.section.risk_hint": "Cuánto aceptas perder por operación y el stop asumido para el sizing.",
+  "riskplanner.section.assets": "3. Qué activos caben en tu riesgo",
+  "riskplanner.buffer_auto": "Buffer TopStep {size}: ${buffer} aplicado al MLL automáticamente.",
+  "riskplanner.risk_derived": "Riesgo por operación resultante: ${risk}",
+  "riskplanner.kpi.risk_per_trade.help": "Saldo x % o monto fijo. Es la base de todo el sizing por activo.",
+  "riskplanner.kpi.risk_per_trade.read": "Máximo que aceptas perder en una operación.",
+  "riskplanner.kpi.trades_to_dll.help": "Cuántos stops seguidos caben en el límite de pérdida diaria antes de bloquear el día.",
+  "riskplanner.kpi.trades_to_dll.read": "{n} pérdidas seguidas alcanzan el límite del día.",
+  "riskplanner.kpi.distance.help": "Saldo menos el MLL: el colchón total de capital hasta el blowout.",
+  "riskplanner.kpi.distance.read": "Cuánto puedes perder antes de que la cuenta se cierre.",
+  "riskplanner.kpi.days_to_blowout.help": "Distancia al blowout dividida por el límite de pérdida diaria.",
+  "riskplanner.kpi.days_to_blowout.read": "{n} días de pérdida máxima hasta quebrar.",
+  "riskplanner.compare.recommended": "Recomendado: {name} - admite más contratos con tu riesgo.",
+  "riskplanner.mc.hint": "Simula miles de secuencias de operaciones con tu win rate y R medio para estimar la probabilidad de quebrar la cuenta en el horizonte.",
+  "riskplanner.mc.win_rate.help": "Fracción de operaciones ganadoras. 0.5 = 50% de acierto.",
+  "riskplanner.mc.avg_r.help": "Ganancia media del ganador en múltiplos del riesgo. 1.5 = gana 1,5x lo que arriesga.",
+  "riskplanner.mc.verdict.high": "Riesgo ALTO de quebrar la cuenta en {days} días",
+  "riskplanner.mc.verdict.mid": "Riesgo MEDIO de quebrar la cuenta en {days} días",
+  "riskplanner.mc.verdict.low": "Riesgo BAJO de quebrar la cuenta en {days} días",
+  "riskplanner.mc.verdict.hint": "Según P(blowout): menos de 5% bajo, 5-20% medio, más de 20% alto."
 }
