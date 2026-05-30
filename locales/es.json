@@ -574,5 +574,10 @@
   "riskplanner.push_direction": "Dirección planificada",
   "riskplanner.push_dir.both": "Ambas",
   "riskplanner.push_dir.long": "Solo Long",
-  "riskplanner.push_dir.short": "Solo Short"
+  "riskplanner.push_dir.short": "Solo Short",
+  "riskreview.save_btn": "Guardar evaluación",
+  "riskreview.save_ok": "Evaluación guardada.",
+  "riskreview.save_err": "No se pudo guardar: {err}",
+  "riskreview.evolution.title": "Evolución del score",
+  "riskreview.evolution.hint": "Guarda evaluaciones de períodos distintos para seguir el score en el tiempo."
 }

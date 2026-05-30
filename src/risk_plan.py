@@ -23,6 +23,7 @@ import daily_plan
 
 TABLE = "risk_plans"
 ASSETS_TABLE = "risk_plan_assets"
+REVIEWS_TABLE = "risk_reviews"
 
 
 # --- catálogo de contratos --------------------------------------------------
@@ -129,6 +130,57 @@ def save_assets(risk_plan_id: int, rows: list[dict]) -> dict:
         return {"ok": True, "error": None}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+# --- histórico da Avaliação (risk_reviews) ----------------------------------
+
+
+def save_review(period_start: date, period_end: date, review: dict) -> dict:
+    """Upsert do snapshot da Avaliação de Risco na linha
+    (user, period_start, period_end). Injeta user_id (RLS exige). Persiste só os
+    agregados (score + contadores) — as tabelas detalhadas são recomputadas.
+    Devolve `{ok, error}`."""
+    try:
+        client = auth.get_client()
+        uid = auth.current_user_id()
+        if not uid:
+            return {"ok": False, "error": "no_user"}
+        row = {
+            "user_id": uid,
+            "period_start": period_start.isoformat(),
+            "period_end": period_end.isoformat(),
+            "total_days": int(review.get("total_days", 0)),
+            "clean_days": int(review.get("clean_days", 0)),
+            "score_pct": round(float(review.get("score_pct", 0.0)), 2),
+            "stop_furado": int(review.get("stop_furado", 0)),
+            "risco_excedido": int(review.get("risco_excedido", 0)),
+            "dll_furado": int(review.get("dll_furado", 0)),
+            "blowout": int(review.get("blowout", 0)),
+        }
+        (
+            client.table(REVIEWS_TABLE)
+            .upsert(row, on_conflict="user_id,period_start,period_end")
+            .execute()
+        )
+        return {"ok": True, "error": None}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def list_reviews(limit: int = 90) -> pd.DataFrame:
+    """Snapshots salvos do usuário corrente (RLS filtra), ordenados por
+    period_end, para o gráfico de evolução do score. Vazio em falha."""
+    try:
+        r = (
+            auth.get_client().table(REVIEWS_TABLE)
+            .select("*")
+            .order("period_end")
+            .limit(limit)
+            .execute()
+        )
+        return pd.DataFrame(r.data or [])
+    except Exception:
+        return pd.DataFrame()
 
 
 # --- ponte para daily_plans -------------------------------------------------

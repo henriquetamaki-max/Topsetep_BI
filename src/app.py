@@ -1889,6 +1889,12 @@ def _load_risk_plans_range(user_id: str, start, end):
     return risk_plan.list_plans_range(start, end)
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def _load_reviews(user_id: str):
+    del user_id  # chave de cache por usuário
+    return risk_plan.list_reviews()
+
+
 def render_risk_review(user: dict, plan: dict | None, groups, plans) -> None:
     """Avaliação de Risco retrospectiva (M15): confronta os trades importados
     (já filtrados pela sidebar) contra o plano de cada dia e diz se o trader
@@ -1991,6 +1997,33 @@ def render_risk_review(user: dict, plan: dict | None, groups, plans) -> None:
                     t("riskreview.ops.col.excess"), format="$%.2f"),
             },
         )
+
+    # Persistir snapshot + evolução do score ao longo dos períodos salvos.
+    st.divider()
+    cs, _ = st.columns([1, 3])
+    if cs.button(t("riskreview.save_btn"), type="primary", width="stretch", key="_rr_save"):
+        res = risk_plan.save_review(start, end, review)
+        if res["ok"]:
+            st.success(t("riskreview.save_ok"))
+            _load_reviews.clear()
+        else:
+            st.error(t("riskreview.save_err", err=res.get("error")))
+
+    hist = _load_reviews(user["id"])
+    if not hist.empty and len(hist) >= 2:
+        st.markdown(f"#### {t('riskreview.evolution.title')}")
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=pd.to_datetime(hist["period_end"]), y=hist["score_pct"],
+            mode="lines+markers", line=dict(color="#5b9bd5", width=2)))
+        fig.update_layout(
+            template="plotly_dark", height=260,
+            margin=dict(t=20, b=20, l=20, r=20),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            yaxis=dict(range=[0, 100], title="%"))
+        st.plotly_chart(fig, width="stretch")
+    elif not hist.empty:
+        st.caption(t("riskreview.evolution.hint"))
 
 
 def render_import(user_id: str) -> None:
